@@ -41,6 +41,9 @@ pids/
 app.config.timestamp_*.js
 .tanstack/
 
+# Vite temp files
+vite.config.timestamp_*.js
+
 # RAG data
 backend/data/
 
