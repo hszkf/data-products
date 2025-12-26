@@ -37,6 +37,10 @@ pids/
 .eslintcache
 *.tsbuildinfo
 
+# TanStack Router temp files
+app.config.timestamp_*.js
+.tanstack/
+
 # RAG data
 backend/data/
 
