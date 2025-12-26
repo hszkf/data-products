@@ -12,13 +12,18 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as StorageRouteImport } from './routes/storage'
 import { Route as SqlRouteImport } from './routes/sql'
 import { Route as LogsRouteImport } from './routes/logs'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AiRouteImport } from './routes/ai'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as JobsIndexRouteImport } from './routes/jobs.index'
+import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as JobsNewRouteImport } from './routes/jobs.new'
 import { Route as JobsJobIdRouteImport } from './routes/jobs.$jobId'
+import { Route as AdminUsersRouteImport } from './routes/admin.users'
+import { Route as AdminLogsRouteImport } from './routes/admin.logs'
 import { Route as JobsJobIdEditRouteImport } from './routes/jobs.$jobId.edit'
 
 const StorageRoute = StorageRouteImport.update({
@@ -36,6 +41,11 @@ const LogsRoute = LogsRouteImport.update({
   path: '/logs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const JobsRoute = JobsRouteImport.update({
   id: '/jobs',
   path: '/jobs',
@@ -51,6 +61,11 @@ const AiRoute = AiRouteImport.update({
   path: '/ai',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -60,6 +75,11 @@ const JobsIndexRoute = JobsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => JobsRoute,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRoute,
 } as any)
 const JobsNewRoute = JobsNewRouteImport.update({
   id: '/new',
@@ -71,6 +91,16 @@ const JobsJobIdRoute = JobsJobIdRouteImport.update({
   path: '/$jobId',
   getParentRoute: () => JobsRoute,
 } as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminLogsRoute = AdminLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => AdminRoute,
+} as any)
 const JobsJobIdEditRoute = JobsJobIdEditRouteImport.update({
   id: '/edit',
   path: '/edit',
@@ -79,14 +109,19 @@ const JobsJobIdEditRoute = JobsJobIdEditRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
   '/ai': typeof AiRoute
   '/dashboard': typeof DashboardRoute
   '/jobs': typeof JobsRouteWithChildren
+  '/login': typeof LoginRoute
   '/logs': typeof LogsRoute
   '/sql': typeof SqlRoute
   '/storage': typeof StorageRoute
+  '/admin/logs': typeof AdminLogsRoute
+  '/admin/users': typeof AdminUsersRoute
   '/jobs/$jobId': typeof JobsJobIdRouteWithChildren
   '/jobs/new': typeof JobsNewRoute
+  '/admin/': typeof AdminIndexRoute
   '/jobs/': typeof JobsIndexRoute
   '/jobs/$jobId/edit': typeof JobsJobIdEditRoute
 }
@@ -94,25 +129,34 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
   '/dashboard': typeof DashboardRoute
+  '/login': typeof LoginRoute
   '/logs': typeof LogsRoute
   '/sql': typeof SqlRoute
   '/storage': typeof StorageRoute
+  '/admin/logs': typeof AdminLogsRoute
+  '/admin/users': typeof AdminUsersRoute
   '/jobs/$jobId': typeof JobsJobIdRouteWithChildren
   '/jobs/new': typeof JobsNewRoute
+  '/admin': typeof AdminIndexRoute
   '/jobs': typeof JobsIndexRoute
   '/jobs/$jobId/edit': typeof JobsJobIdEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
   '/ai': typeof AiRoute
   '/dashboard': typeof DashboardRoute
   '/jobs': typeof JobsRouteWithChildren
+  '/login': typeof LoginRoute
   '/logs': typeof LogsRoute
   '/sql': typeof SqlRoute
   '/storage': typeof StorageRoute
+  '/admin/logs': typeof AdminLogsRoute
+  '/admin/users': typeof AdminUsersRoute
   '/jobs/$jobId': typeof JobsJobIdRouteWithChildren
   '/jobs/new': typeof JobsNewRoute
+  '/admin/': typeof AdminIndexRoute
   '/jobs/': typeof JobsIndexRoute
   '/jobs/$jobId/edit': typeof JobsJobIdEditRoute
 }
@@ -120,14 +164,19 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/ai'
     | '/dashboard'
     | '/jobs'
+    | '/login'
     | '/logs'
     | '/sql'
     | '/storage'
+    | '/admin/logs'
+    | '/admin/users'
     | '/jobs/$jobId'
     | '/jobs/new'
+    | '/admin/'
     | '/jobs/'
     | '/jobs/$jobId/edit'
   fileRoutesByTo: FileRoutesByTo
@@ -135,33 +184,44 @@ export interface FileRouteTypes {
     | '/'
     | '/ai'
     | '/dashboard'
+    | '/login'
     | '/logs'
     | '/sql'
     | '/storage'
+    | '/admin/logs'
+    | '/admin/users'
     | '/jobs/$jobId'
     | '/jobs/new'
+    | '/admin'
     | '/jobs'
     | '/jobs/$jobId/edit'
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/ai'
     | '/dashboard'
     | '/jobs'
+    | '/login'
     | '/logs'
     | '/sql'
     | '/storage'
+    | '/admin/logs'
+    | '/admin/users'
     | '/jobs/$jobId'
     | '/jobs/new'
+    | '/admin/'
     | '/jobs/'
     | '/jobs/$jobId/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRouteWithChildren
   AiRoute: typeof AiRoute
   DashboardRoute: typeof DashboardRoute
   JobsRoute: typeof JobsRouteWithChildren
+  LoginRoute: typeof LoginRoute
   LogsRoute: typeof LogsRoute
   SqlRoute: typeof SqlRoute
   StorageRoute: typeof StorageRoute
@@ -190,6 +250,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LogsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/jobs': {
       id: '/jobs'
       path: '/jobs'
@@ -211,6 +278,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AiRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -224,6 +298,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/jobs/'
       preLoaderRoute: typeof JobsIndexRouteImport
       parentRoute: typeof JobsRoute
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/jobs/new': {
       id: '/jobs/new'
@@ -239,6 +320,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JobsJobIdRouteImport
       parentRoute: typeof JobsRoute
     }
+    '/admin/users': {
+      id: '/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/logs': {
+      id: '/admin/logs'
+      path: '/logs'
+      fullPath: '/admin/logs'
+      preLoaderRoute: typeof AdminLogsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/jobs/$jobId/edit': {
       id: '/jobs/$jobId/edit'
       path: '/edit'
@@ -248,6 +343,20 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface AdminRouteChildren {
+  AdminLogsRoute: typeof AdminLogsRoute
+  AdminUsersRoute: typeof AdminUsersRoute
+  AdminIndexRoute: typeof AdminIndexRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminLogsRoute: AdminLogsRoute,
+  AdminUsersRoute: AdminUsersRoute,
+  AdminIndexRoute: AdminIndexRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface JobsJobIdRouteChildren {
   JobsJobIdEditRoute: typeof JobsJobIdEditRoute
@@ -277,9 +386,11 @@ const JobsRouteWithChildren = JobsRoute._addFileChildren(JobsRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRouteWithChildren,
   AiRoute: AiRoute,
   DashboardRoute: DashboardRoute,
   JobsRoute: JobsRouteWithChildren,
+  LoginRoute: LoginRoute,
   LogsRoute: LogsRoute,
   SqlRoute: SqlRoute,
   StorageRoute: StorageRoute,

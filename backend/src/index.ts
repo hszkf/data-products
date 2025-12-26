@@ -1,32 +1,118 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
 import { sqlRoutes } from './routes/sql';
 import { jobsRoutes } from './routes/jobs';
 import { storageRoutes } from './routes/storage';
 import { aiRoutes } from './routes/ai';
 import { ragRoutes } from './routes/rag';
+import { authRoutes } from './routes/auth';
+import { usersRoutes } from './routes/users';
+import { logsRoutes } from './routes/logs';
 import { initSqlServer, closeSqlServer } from './services/database/sqlserver';
 import { initRedshift, closeRedshift } from './services/database/redshift';
 import { storageService } from './services/storage-service';
 import { schedulerService } from './services/scheduler-service';
 import { websocketHandlers } from './utils/websocket';
+import { requestIdMiddleware, requestLoggerMiddleware, errorHandler, notFoundHandler } from './middleware/error-handler';
+import { authMiddleware, optionalAuthMiddleware } from './middleware/auth';
+import { logger } from './utils/logger';
 
 const app = new Hono();
 
-// Middleware
+// Use Hono's built-in onError handler for proper error catching
+app.onError((err, c) => {
+  const requestId = c.get('requestId') || 'unknown';
+  const user = c.get('user');
+
+  // Check if it's an AppError
+  if ((err as any).statusCode && (err as any).code) {
+    const appError = err as any;
+    
+    // Log based on whether it's operational
+    if (appError.isOperational) {
+      logger.warn(`${appError.code}: ${appError.message}`, {
+        requestId,
+        userId: user?.id,
+        username: user?.username,
+        method: c.req.method,
+        path: c.req.path,
+        metadata: { statusCode: appError.statusCode },
+      });
+    } else {
+      logger.error('Request error', err, {
+        requestId,
+        userId: user?.id,
+        username: user?.username,
+        method: c.req.method,
+        path: c.req.path,
+      });
+    }
+
+    return c.json(
+      {
+        status: 'error',
+        code: appError.code,
+        message: appError.message,
+        ...(appError.details && { details: appError.details }),
+        requestId,
+      },
+      appError.statusCode
+    );
+  }
+
+  // Unknown error
+  logger.error('Unexpected error', err, {
+    requestId,
+    userId: user?.id,
+    username: user?.username,
+    method: c.req.method,
+    path: c.req.path,
+  });
+
+  return c.json(
+    {
+      status: 'error',
+      code: 'INTERNAL_ERROR',
+      message: 'An unexpected error occurred',
+      requestId,
+    },
+    500
+  );
+});
+
+// Global middleware (order matters!)
+// 1. Request ID first so all logs have it
+app.use('*', requestIdMiddleware);
+// 2. CORS for cross-origin requests
 app.use('*', cors({
   origin: '*',
-  credentials: false,
+  credentials: true,
 }));
-app.use('*', logger());
+// 3. Pretty JSON for readable responses
 app.use('*', prettyJSON());
+// 4. Request logger
+app.use('*', requestLoggerMiddleware);
 
-// Health check
+// Health check (no auth required)
 app.get('/health', (c) => {
   return c.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
+
+// Auth routes (no auth required for login)
+app.route('/auth', authRoutes);
+
+// Protected routes - require authentication
+app.use('/sqlserver/*', authMiddleware);
+app.use('/redshift/*', authMiddleware);
+app.use('/jobs/*', authMiddleware);
+app.use('/storage/*', authMiddleware);
+app.use('/users/*', authMiddleware);
+app.use('/logs/*', authMiddleware);
+
+// Optional auth for AI routes (can work without auth)
+app.use('/ai/*', optionalAuthMiddleware);
+app.use('/rag/*', optionalAuthMiddleware);
 
 // Mount routes
 app.route('/sqlserver', sqlRoutes);
@@ -35,51 +121,70 @@ app.route('/jobs', jobsRoutes);
 app.route('/storage', storageRoutes);
 app.route('/ai', aiRoutes);
 app.route('/rag', ragRoutes);
+app.route('/users', usersRoutes);
+app.route('/logs', logsRoutes);
+
+// 404 handler
+app.notFound(notFoundHandler);
 
 // Startup
 async function startup() {
-  console.log('🚀 Starting SQL Query Studio API...');
+  logger.info('Starting Data Products API...');
 
   // Initialize database connections (non-blocking)
   try {
     await initSqlServer();
-    console.log('✅ SQL Server connection initialized');
+    logger.info('SQL Server connection initialized');
   } catch (error) {
-    console.warn('⚠️ SQL Server connection failed (will retry on first request):', (error as Error).message);
+    logger.warn('SQL Server connection failed (will retry on first request)', { 
+      metadata: { error: (error as Error).message }
+    });
   }
 
   try {
     await initRedshift();
-    console.log('✅ Redshift connection initialized');
+    logger.info('Redshift connection initialized');
   } catch (error) {
-    console.warn('⚠️ Redshift connection failed (will retry on first request):', (error as Error).message);
+    logger.warn('Redshift connection failed (will retry on first request)', {
+      metadata: { error: (error as Error).message }
+    });
   }
 
   // Check S3 Storage connection
   try {
     const s3Health = await storageService.healthCheck();
     if (s3Health.connected) {
-      console.log(`✅ S3 Storage connected (bucket: ${s3Health.bucket}, prefix: ${s3Health.prefix})`);
+      logger.info('S3 Storage connected', { 
+        metadata: { bucket: s3Health.bucket, prefix: s3Health.prefix }
+      });
     } else {
-      console.warn(`⚠️ S3 Storage disconnected (bucket: ${s3Health.bucket}) - check AWS credentials`);
+      logger.warn('S3 Storage disconnected - check AWS credentials', {
+        metadata: { bucket: s3Health.bucket }
+      });
     }
   } catch (error) {
-    console.warn('⚠️ S3 Storage check failed:', (error as Error).message);
+    logger.warn('S3 Storage check failed', {
+      metadata: { error: (error as Error).message }
+    });
   }
 
   // Initialize scheduler
   try {
     await schedulerService.start();
-    console.log('✅ Scheduler started');
+    logger.info('Scheduler started');
   } catch (error) {
-    console.warn('⚠️ Scheduler failed to start:', (error as Error).message);
+    logger.warn('Scheduler failed to start', {
+      metadata: { error: (error as Error).message }
+    });
   }
 
-  console.log('✅ Server startup complete');
+  logger.info('Server startup complete');
+  console.log('🚀 Data Products API started successfully');
 }
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
+  logger.info('Shutting down...');
   console.log('\n🛑 Shutting down...');
   schedulerService.stop();
   await closeSqlServer();
@@ -88,11 +193,24 @@ process.on('SIGINT', async () => {
 });
 
 process.on('SIGTERM', async () => {
+  logger.info('Shutting down...');
   console.log('\n🛑 Shutting down...');
   schedulerService.stop();
   await closeSqlServer();
   await closeRedshift();
   process.exit(0);
+});
+
+// Handle uncaught errors
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught exception', error);
+  console.error('Uncaught exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled rejection', reason as Error);
+  console.error('Unhandled rejection:', reason);
 });
 
 // Start server
