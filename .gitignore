@@ -50,3 +50,8 @@ backend/data/
 # Lock files (optional - you may want to keep these)
 # bun.lock
 # package-lock.json
+
+# Playwright
+frontend/test-results/
+frontend/playwright-report/
+frontend/playwright/.cache/
