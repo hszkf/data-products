@@ -9,16 +9,27 @@ export default defineConfig({
   reporter: 'html',
   
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: 'http://127.0.0.1:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
+  },
+  
+  // Increase timeout for slow network operations
+  timeout: 60000,
+  expect: {
+    timeout: 30000,
   },
 
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { 
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          args: ['--disable-web-security', '--allow-running-insecure-content']
+        }
+      },
     },
   ],
 

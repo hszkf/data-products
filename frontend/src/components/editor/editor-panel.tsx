@@ -1,7 +1,7 @@
 
 
 import * as React from "react";
-import { Play, Wand2, GitBranch, Database, TableProperties, PanelLeftClose, PanelLeft, Save, ChevronDown, FileDown, Upload } from "lucide-react";
+import { Play, Wand2, GitBranch, Database, TableProperties, PanelLeftClose, PanelLeft, Save, ChevronDown, FileDown, Upload, MoreVertical, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import {
   Tooltip,
@@ -23,7 +23,7 @@ import { ImportQueryDialog } from "~/components/ui/import-query-dialog";
 import { FileUploadDialog } from "~/components/ui/file-upload-dialog";
 import { useMerge } from "~/components/merge";
 import { cn } from "~/lib/utils";
-import { executeQuery as apiExecuteQuery, checkHealth, SavedQuery } from "~/lib/api";
+import { executeQuery as apiExecuteQuery, checkHealth, SavedQuery, clearSchemaCache, getSchemas } from "~/lib/api";
 import { executeMergeQuery, MergeResult } from "~/lib/merge-sql";
 import { parseErrorLocation } from "~/lib/error-parser";
 import { getRedshiftTableName, getSqlServerTableName } from "~/lib/table-naming";
@@ -48,7 +48,7 @@ const databaseConfig = {
     name: "Amazon Redshift",
     connection: "Schema: glue-spectrum",
     database: "analytics_db",
-    schema: "Hasif Hensem",
+    schema: "public",
     version: "PostgreSQL 8.0.2",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" className="w-[18px] h-[18px]">
@@ -105,30 +105,39 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
     column: 1,
   });
   const [isExplorerOpen, setIsExplorerOpen] = React.useState(false);
-  const [explorerWidth, setExplorerWidth] = React.useState(300); // 208px = w-52
+  const [explorerWidth, setExplorerWidth] = React.useState(260);
   const [isResizing, setIsResizing] = React.useState(false);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = React.useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = React.useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = React.useState(false);
   const [errorLine, setErrorLine] = React.useState<number | null>(null);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [schemaRefreshKey, setSchemaRefreshKey] = React.useState(0);
+  const [isClearingCache, setIsClearingCache] = React.useState(false);
+  const explorerFileInputRef = React.useRef<HTMLInputElement>(null);
 
-  // Check connection status on mount
+  // Check connection status on mount only
   React.useEffect(() => {
+    let mounted = true;
+
     const checkConnectionStatus = async () => {
       try {
         const health = await checkHealth(type);
-        setIsConnected(health.status === "connected");
-        if (health.status !== "connected") {
-          showToast(`${config.name} is disconnected`, "error");
-        }
-      } catch {
+        if (!mounted) return;
+        const isHealthy = health.status === "connected" && health.connected === true;
+        setIsConnected(isHealthy);
+      } catch (error) {
+        if (!mounted) return;
         setIsConnected(false);
       }
     };
 
     checkConnectionStatus();
-  }, [type, config.name, showToast]);
+
+    return () => {
+      mounted = false;
+    };
+  }, [type]);
 
   // Handle explorer resize
   React.useEffect(() => {
@@ -289,6 +298,20 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
           error instanceof Error ? error.message : "Query execution failed";
         showToast(errorMsg, "error");
 
+        // Check if error is a connection/authentication error and update status
+        const isConnectionError =
+          errorMsg.toLowerCase().includes('security token') ||
+          errorMsg.toLowerCase().includes('expired') ||
+          errorMsg.toLowerCase().includes('credential') ||
+          errorMsg.toLowerCase().includes('authentication') ||
+          errorMsg.toLowerCase().includes('connection') ||
+          errorMsg.toLowerCase().includes('not connected') ||
+          errorMsg.toLowerCase().includes('disconnected');
+
+        if (isConnectionError) {
+          setIsConnected(false);
+        }
+
         // Parse error to extract line number
         const errorLocation = parseErrorLocation(errorMsg);
         if (errorLocation) {
@@ -321,6 +344,28 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
     },
     [executeQuery]
   );
+
+  // Explorer menu handlers
+  const handleRefreshSchema = React.useCallback(() => {
+    setSchemaRefreshKey(prev => prev + 1);
+  }, []);
+
+  const handleClearSchemaCache = React.useCallback(async () => {
+    setIsClearingCache(true);
+    try {
+      await clearSchemaCache(type);
+      showToast("Cache cleared", "success");
+      setSchemaRefreshKey(prev => prev + 1);
+    } catch (err) {
+      showToast("Failed to clear cache", "error");
+    } finally {
+      setIsClearingCache(false);
+    }
+  }, [type, showToast]);
+
+  const handleExplorerUpload = React.useCallback(() => {
+    explorerFileInputRef.current?.click();
+  }, []);
 
   const handleTableSelect = React.useCallback(
     (tableName: string, schema: string) => {
@@ -365,16 +410,16 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
       {/* Panel Header */}
       <div
         className={cn(
-          "flex items-center justify-between px-4 py-3 flex-shrink-0",
+          "flex items-center justify-between px-2 py-1.5 flex-shrink-0",
           "border-b border-outline-variant",
           type === "redshift" && "bg-redshift-tint",
           type === "sqlserver" && "bg-sqlserver-tint"
         )}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5">
           <div
             className={cn(
-              "w-8 h-8 rounded-lg flex items-center justify-center relative overflow-hidden",
+              "w-6 h-6 rounded-md flex items-center justify-center relative overflow-hidden",
               type === "redshift" && "bg-redshift-container",
               type === "sqlserver" && "bg-sqlserver-container"
             )}
@@ -388,13 +433,13 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
                   "bg-gradient-to-br from-transparent via-transparent to-sqlserver/30"
               )}
             />
-            <div className="relative z-10">{config.icon}</div>
+            <div className="relative z-10 scale-[0.85]">{config.icon}</div>
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-on-surface leading-tight">
+            <h2 className="text-xs font-semibold text-on-surface leading-tight">
               {config.name}
             </h2>
-            <span className="text-[11px] text-on-surface-variant flex items-center gap-1">
+            <span className="text-[10px] text-on-surface-variant flex items-center gap-1">
               <span
                 className={cn(
                   "w-1.5 h-1.5 rounded-full",
@@ -413,130 +458,245 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
         </div>
 
         <div className="flex items-center gap-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="icon"
-                size="icon"
-                onClick={() => setIsExplorerOpen(!isExplorerOpen)}
-              >
-                {isExplorerOpen ? (
-                  <PanelLeftClose className="w-[18px] h-[18px]" />
-                ) : (
-                  <PanelLeft className="w-[18px] h-[18px]" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {isExplorerOpen ? "Hide Explorer" : "Show Explorer"}
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="icon" size="icon" disabled>
-                <Wand2 className="w-[18px] h-[18px]" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Format SQL (Coming Soon)</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="icon" size="icon" disabled>
-                <GitBranch className="w-[18px] h-[18px]" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Execution Plan (Coming Soon)</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="icon"
-                size="icon"
-                onClick={() => setIsUploadDialogOpen(true)}
-              >
-                <Upload className="w-[18px] h-[18px]" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Upload Files to S3</TooltipContent>
-          </Tooltip>
-
-          <DropdownMenu>
+          {/* Tool buttons group */}
+          <div className={cn(
+            "flex items-center gap-0.5 px-1 py-0.5 rounded-md",
+            "bg-surface-container/50 border border-outline-variant/30"
+          )}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="icon"
-                    size="icon"
-                    disabled={!query.trim()}
-                  >
-                    <Save className="w-[18px] h-[18px]" />
-                    <ChevronDown className="w-3 h-3 ml-0.5" />
-                  </Button>
-                </DropdownMenuTrigger>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-7 w-7 p-0 rounded-md transition-all duration-150",
+                    "hover:bg-[var(--panel-tint)] hover:text-[var(--panel-primary)]",
+                    isExplorerOpen && "bg-[var(--panel-tint)] text-[var(--panel-primary)]"
+                  )}
+                  onClick={() => setIsExplorerOpen(!isExplorerOpen)}
+                >
+                  {isExplorerOpen ? (
+                    <PanelLeftClose className="w-4 h-4" />
+                  ) : (
+                    <PanelLeft className="w-4 h-4" />
+                  )}
+                </Button>
               </TooltipTrigger>
-              <TooltipContent>Query Options</TooltipContent>
+              <TooltipContent>
+                {isExplorerOpen ? "Hide Explorer" : "Show Explorer"}
+              </TooltipContent>
             </Tooltip>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setIsSaveDialogOpen(true)}>
-                <Save className="w-4 h-4 mr-2" />
-                Save Query
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setIsImportDialogOpen(true)}>
-                <FileDown className="w-4 h-4 mr-2" />
-                Import Query
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
 
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 rounded-md opacity-40 cursor-not-allowed"
+                  disabled
+                >
+                  <Wand2 className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Format SQL (Coming Soon)</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 rounded-md opacity-40 cursor-not-allowed"
+                  disabled
+                >
+                  <GitBranch className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Execution Plan (Coming Soon)</TooltipContent>
+            </Tooltip>
+
+            <div className="w-px h-4 bg-outline-variant/50 mx-0.5" />
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 rounded-md transition-all duration-150 hover:bg-[var(--panel-tint)] hover:text-[var(--panel-primary)]"
+                  onClick={() => setIsUploadDialogOpen(true)}
+                >
+                  <Upload className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Upload Files to S3</TooltipContent>
+            </Tooltip>
+
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        "h-7 px-1.5 rounded-md transition-all duration-150",
+                        "hover:bg-[var(--panel-tint)] hover:text-[var(--panel-primary)]",
+                        !query.trim() && "opacity-40 cursor-not-allowed"
+                      )}
+                      disabled={!query.trim()}
+                    >
+                      <Save className="w-4 h-4" />
+                      <ChevronDown className="w-3 h-3 ml-0.5 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Query Options</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setIsSaveDialogOpen(true)}>
+                  <Save className="w-4 h-4 mr-2" />
+                  Save Query
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsImportDialogOpen(true)}>
+                  <FileDown className="w-4 h-4 mr-2" />
+                  Import Query
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* Run button - prominent */}
           <Button
             variant="run"
             size="sm"
+            className={cn(
+              "h-7 px-3 text-xs font-medium gap-1.5 rounded-md",
+              "shadow-sm transition-all duration-150",
+              "hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+            )}
             colorScheme={type}
             onClick={executeQuery}
             disabled={isLoading}
           >
-            <Play className="w-4 h-4" />
-            Run
-            <span className="text-[10px] opacity-70 flex items-center gap-0.5">
-              <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px]">
-                ⌘
-              </kbd>
-              <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px]">
-                ↵
-              </kbd>
-            </span>
+            <Play className="w-3.5 h-3.5" />
+            <span>Run</span>
+            <kbd className={cn(
+              "hidden sm:inline-flex items-center gap-0.5 ml-1",
+              "px-1 py-0.5 rounded text-[10px] font-mono",
+              "bg-white/15 text-white/80"
+            )}>
+              ⌘↵
+            </kbd>
           </Button>
         </div>
       </div>
 
-      {/* Editor Area */}
-      <div className="flex-1 flex min-h-0">
-        {/* Schema Browser - collapsible and resizable for both Redshift and SQL Server */}
+      {/* Main Content Area - relative for absolute sidebar positioning */}
+      <div className="flex-1 flex min-h-0 overflow-hidden relative">
+        {/* Sidebar - Absolutely positioned to not affect layout */}
         {isExplorerOpen && (
           <div
-            className="flex-shrink-0 border-r border-outline-variant relative h-[830px]"
+            className={cn(
+              "absolute left-0 top-0 bottom-0 z-10 flex",
+              "bg-gradient-to-b from-surface-container to-surface-container/95",
+              "backdrop-blur-md overflow-hidden"
+            )}
             style={{ width: explorerWidth }}
           >
-            <SchemaBrowser type={type} onTableSelect={handleTableSelect} />
+            {/* Sidebar content */}
+            <div className="flex-1 flex flex-col overflow-hidden border-r border-outline-variant/50">
+            {/* Sidebar Header */}
+            <div className={cn(
+              "flex-shrink-0 flex items-center justify-between px-3 py-2.5 border-b border-outline-variant/30",
+              "bg-gradient-to-r",
+              type === "redshift" && "from-redshift/5 to-transparent",
+              type === "sqlserver" && "from-sqlserver/5 to-transparent"
+            )}>
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  "w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0",
+                  "bg-gradient-to-br shadow-inner",
+                  type === "redshift" && "from-redshift/20 to-redshift/5 text-redshift",
+                  type === "sqlserver" && "from-sqlserver/20 to-sqlserver/5 text-sqlserver"
+                )}>
+                  <Database className="w-4 h-4" />
+                </div>
+                <span className="text-[11px] font-semibold text-on-surface tracking-wide uppercase">
+                  Explorer
+                </span>
+              </div>
+
+              {/* 3-dot menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className={cn(
+                      "p-1.5 rounded-md transition-colors",
+                      "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
+                    )}
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={handleExplorerUpload}>
+                    <Upload className="w-4 h-4 mr-2 text-green-400" />
+                    Upload CSV/Excel
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleRefreshSchema}>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Refresh Schema
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleClearSchemaCache} disabled={isClearingCache}>
+                    <Trash2 className="w-4 h-4 mr-2 text-amber-400" />
+                    Clear Cache
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Hidden file input for explorer upload */}
+              <input
+                ref={explorerFileInputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                onChange={(e) => {
+                  // Trigger the schema browser's file handler via a custom event
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    window.dispatchEvent(new CustomEvent('explorer-file-upload', { detail: file }));
+                  }
+                  e.target.value = '';
+                }}
+                className="hidden"
+              />
+            </div>
+
+            {/* SchemaBrowser - takes remaining space, scrolls internally */}
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <SchemaBrowser type={type} onTableSelect={handleTableSelect} refreshKey={schemaRefreshKey} />
+            </div>
+            </div>
+
             {/* Resize handle */}
             <div
               className={cn(
-                "absolute top-0 right-0 w-1 h-full cursor-col-resize transition-colors",
-                type === "redshift" && "hover:bg-redshift/50",
-                type === "sqlserver" && "hover:bg-sqlserver/50",
-                isResizing && type === "redshift" && "bg-redshift/50",
-                isResizing && type === "sqlserver" && "bg-sqlserver/50"
+                "w-1 cursor-col-resize flex-shrink-0 transition-colors",
+                "hover:bg-primary/30",
+                isResizing && "bg-primary/50"
               )}
-              onMouseDown={() => setIsResizing(true)}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setIsResizing(true);
+              }}
             />
           </div>
         )}
 
-        {/* Code Editor and Results */}
-        <div className="flex-1 flex flex-col min-h-0">
+        {/* Editor & Results - adds left margin when sidebar is open */}
+        <div
+          className="flex-1 flex flex-col min-h-0 min-w-0 transition-[margin] duration-200"
+          style={{ marginLeft: isExplorerOpen ? explorerWidth : 0 }}
+        >
           <CodeEditor
             value={query}
             onChange={setQuery}
@@ -548,13 +708,12 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
             errorLine={errorLine}
             errorMessage={errorMessage}
           />
-
           <ResultsPanel result={result} colorScheme={type} errorLine={errorLine} queryText={query} />
         </div>
       </div>
 
       {/* Status Bar */}
-      <div className="flex items-center justify-between px-4 py-1.5 bg-surface-container border-t border-outline-variant text-[11px] text-on-surface-variant">
+      <div className="flex items-center justify-between px-3 py-1 bg-surface-container border-t border-outline-variant text-[11px] text-on-surface-variant">
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1">
             <Database className="w-3.5 h-3.5" />

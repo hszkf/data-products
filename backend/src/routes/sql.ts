@@ -5,6 +5,7 @@ import * as redshift from '../services/database/redshift';
 import { getUser } from '../middleware/auth';
 import { checkQuery, getBlockedCommandsForRole } from '../middleware/query-guard';
 import { queryLogger } from '../services/query-logger';
+import { schemaCache } from '../services/schema-cache';
 import { QueryBlockedError } from '../utils/errors';
 import { logger } from '../utils/logger';
 
@@ -142,26 +143,96 @@ sqlRoutes.post('/execute', async (c) => {
   }
 });
 
-// Get database schema
+// Get database schema (with caching)
 sqlRoutes.get('/schema', async (c) => {
+  const dbType = c.req.path.includes('/redshift') ? 'redshift' : 'sqlserver';
+  const forceRefresh = c.req.query('refresh') === 'true';
+
   try {
+    // Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      const cachedSchema = schemaCache.get(dbType);
+      if (cachedSchema) {
+        const cacheInfo = schemaCache.getInfo(dbType);
+        const schemaCount = Object.keys(cachedSchema).length;
+        const tableCount = Object.values(cachedSchema).flat().length;
+        logger.info(`Schema loaded from cache`, {
+          metadata: { database: dbType, schemas: schemaCount, tables: tableCount, age: cacheInfo.age }
+        });
+        return c.json({
+          status: 'success',
+          schemas: cachedSchema,
+          cached: true,
+          cacheInfo: {
+            cachedAt: cacheInfo.cachedAt,
+            age: cacheInfo.age,
+          },
+        });
+      }
+    }
+
+    // Fetch fresh data from database
+    logger.info(`Fetching schema from database`, { metadata: { database: dbType, forceRefresh } });
     const db = getDatabase(c.req.path);
-    const schema = await db.getSchema();
+    const rawSchema = await db.getSchema();
+
+    // Normalize schema to format frontend expects: { schema_name: ["table1", "table2", ...] }
+    const schemas: Record<string, string[]> = {};
+    for (const [schemaName, tables] of Object.entries(rawSchema)) {
+      if (Array.isArray(tables)) {
+        schemas[schemaName] = tables;
+      } else if (typeof tables === 'object' && tables !== null) {
+        schemas[schemaName] = Object.keys(tables);
+      }
+    }
+
+    // Cache the result
+    schemaCache.set(dbType, schemas);
+
+    const schemaCount = Object.keys(schemas).length;
+    const tableCount = Object.values(schemas).flat().length;
+    logger.info(`Schema fetched from database`, {
+      metadata: { database: dbType, schemas: schemaCount, tables: tableCount }
+    });
 
     return c.json({
-      success: true,
-      data: schema,
+      status: 'success',
+      schemas,
+      cached: false,
     });
   } catch (error: any) {
-    console.error('Schema fetch error:', error);
-    return c.json(
-      {
-        success: false,
-        error: error.message || 'Failed to fetch schema',
-      },
-      500
-    );
+    logger.error(`Schema fetch error`, error, { metadata: { database: dbType } });
+    return c.json({
+      status: 'error',
+      schemas: {},
+      detail: error.message || 'Failed to fetch schema',
+    });
   }
+});
+
+// Get cache info
+sqlRoutes.get('/schema/cache', async (c) => {
+  const dbType = c.req.path.includes('/redshift') ? 'redshift' : 'sqlserver';
+  const cacheInfo = schemaCache.getInfo(dbType);
+
+  return c.json({
+    status: 'success',
+    database: dbType,
+    cache: cacheInfo,
+  });
+});
+
+// Clear schema cache
+sqlRoutes.delete('/schema/cache', async (c) => {
+  const dbType = c.req.path.includes('/redshift') ? 'redshift' : 'sqlserver';
+  const cleared = schemaCache.clear(dbType);
+
+  return c.json({
+    status: 'success',
+    database: dbType,
+    cleared,
+    message: cleared ? 'Cache cleared successfully' : 'No cache to clear',
+  });
 });
 
 // Health check

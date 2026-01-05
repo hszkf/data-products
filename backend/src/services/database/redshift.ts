@@ -5,6 +5,7 @@ import {
   ExecuteStatementCommand,
   GetStatementResultCommand,
   DescribeStatementCommand,
+  ListTablesCommand,
   StatusString,
 } from '@aws-sdk/client-redshift-data';
 
@@ -34,13 +35,15 @@ export async function initRedshift(): Promise<void> {
       credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-        sessionToken: process.env.AWS_SESSION_TOKEN,
+        sessionToken: process.env.AWS_SESSION_TOKEN || '',
       },
     });
 
-    // Test connection with a simple query
-    const testResult = await executeStatement('SELECT 1');
-    if (testResult) {
+    // Test connection with a simple query - wait for completion
+    const statementId = await executeStatement('SELECT 1');
+    if (statementId) {
+      // Wait for the statement to actually complete
+      await waitForStatement(statementId, 30000);
       connected = true;
       connectionError = null;
       console.log('✅ Redshift Serverless connected');
@@ -81,7 +84,7 @@ async function waitForStatement(statementId: string, maxWaitMs: number = 60000):
   if (!client) return false;
 
   const startTime = Date.now();
-  const pollInterval = 500; // Poll every 500ms
+  const pollInterval = 1000; // Poll every 1 second (10s total with retries)
 
   while (Date.now() - startTime < maxWaitMs) {
     const describeCommand = new DescribeStatementCommand({ Id: statementId });
@@ -144,9 +147,7 @@ export async function executeQuery(query: string): Promise<QueryResult> {
   const start = Date.now();
 
   if (!client || !connected) {
-    // Return mock data if not connected (for demo purposes)
-    console.log('Redshift not connected, returning sample data');
-    return getMockQueryResult(query, start);
+    throw new Error('Redshift not connected');
   }
 
   try {
@@ -170,176 +171,136 @@ export async function executeQuery(query: string): Promise<QueryResult> {
   }
 }
 
-// Mock data for demo when Redshift is not connected
-function getMockQueryResult(query: string, startTime: number): QueryResult {
-  const executionTime = Date.now() - startTime;
-  const lowerQuery = query.toLowerCase();
-
-  // Return sample data based on query type
-  if (lowerQuery.includes('select')) {
-    // Sample e-commerce data
-    if (lowerQuery.includes('order') || lowerQuery.includes('sales')) {
-      return {
-        columns: ['order_id', 'customer_id', 'order_date', 'total_amount', 'status'],
-        rows: [
-          { order_id: 1001, customer_id: 'C001', order_date: '2024-01-15', total_amount: 250.00, status: 'completed' },
-          { order_id: 1002, customer_id: 'C002', order_date: '2024-01-16', total_amount: 175.50, status: 'completed' },
-          { order_id: 1003, customer_id: 'C003', order_date: '2024-01-17', total_amount: 320.75, status: 'pending' },
-          { order_id: 1004, customer_id: 'C001', order_date: '2024-01-18', total_amount: 89.99, status: 'completed' },
-          { order_id: 1005, customer_id: 'C004', order_date: '2024-01-19', total_amount: 450.00, status: 'shipped' },
-        ],
-        rowCount: 5,
-        executionTime,
-      };
-    }
-
-    if (lowerQuery.includes('customer') || lowerQuery.includes('user')) {
-      return {
-        columns: ['customer_id', 'name', 'email', 'city', 'signup_date'],
-        rows: [
-          { customer_id: 'C001', name: 'John Smith', email: 'john@example.com', city: 'New York', signup_date: '2023-06-15' },
-          { customer_id: 'C002', name: 'Jane Doe', email: 'jane@example.com', city: 'Los Angeles', signup_date: '2023-07-20' },
-          { customer_id: 'C003', name: 'Bob Johnson', email: 'bob@example.com', city: 'Chicago', signup_date: '2023-08-10' },
-          { customer_id: 'C004', name: 'Alice Brown', email: 'alice@example.com', city: 'Houston', signup_date: '2023-09-05' },
-        ],
-        rowCount: 4,
-        executionTime,
-      };
-    }
-
-    if (lowerQuery.includes('product')) {
-      return {
-        columns: ['product_id', 'name', 'category', 'price', 'stock'],
-        rows: [
-          { product_id: 'P001', name: 'Laptop Pro', category: 'Electronics', price: 1299.99, stock: 50 },
-          { product_id: 'P002', name: 'Wireless Mouse', category: 'Electronics', price: 29.99, stock: 200 },
-          { product_id: 'P003', name: 'Office Chair', category: 'Furniture', price: 249.99, stock: 30 },
-          { product_id: 'P004', name: 'Desk Lamp', category: 'Furniture', price: 45.00, stock: 100 },
-          { product_id: 'P005', name: 'Notebook Set', category: 'Stationery', price: 12.99, stock: 500 },
-        ],
-        rowCount: 5,
-        executionTime,
-      };
-    }
-
-    // Default sample data for any SELECT query
-    return {
-      columns: ['id', 'name', 'value', 'created_at'],
-      rows: [
-        { id: 1, name: 'Sample Record 1', value: 100, created_at: '2024-01-01' },
-        { id: 2, name: 'Sample Record 2', value: 200, created_at: '2024-01-02' },
-        { id: 3, name: 'Sample Record 3', value: 300, created_at: '2024-01-03' },
-        { id: 4, name: 'Sample Record 4', value: 400, created_at: '2024-01-04' },
-        { id: 5, name: 'Sample Record 5', value: 500, created_at: '2024-01-05' },
-      ],
-      rowCount: 5,
-      executionTime,
-    };
-  }
-
-  // For non-SELECT queries
-  return {
-    columns: [],
-    rows: [],
-    rowCount: 0,
-    executionTime,
-  };
-}
-
 export async function getSchema(): Promise<any> {
-  if (!client || !connected) {
-    // Return mock schema when not connected
-    return {
-      public: {
-        orders: [
-          { column_name: 'order_id', data_type: 'integer', is_nullable: false },
-          { column_name: 'customer_id', data_type: 'varchar', is_nullable: false },
-          { column_name: 'order_date', data_type: 'date', is_nullable: false },
-          { column_name: 'total_amount', data_type: 'decimal', is_nullable: true },
-          { column_name: 'status', data_type: 'varchar', is_nullable: true },
-        ],
-        customers: [
-          { column_name: 'customer_id', data_type: 'varchar', is_nullable: false },
-          { column_name: 'name', data_type: 'varchar', is_nullable: false },
-          { column_name: 'email', data_type: 'varchar', is_nullable: true },
-          { column_name: 'city', data_type: 'varchar', is_nullable: true },
-          { column_name: 'signup_date', data_type: 'date', is_nullable: true },
-        ],
-        products: [
-          { column_name: 'product_id', data_type: 'varchar', is_nullable: false },
-          { column_name: 'name', data_type: 'varchar', is_nullable: false },
-          { column_name: 'category', data_type: 'varchar', is_nullable: true },
-          { column_name: 'price', data_type: 'decimal', is_nullable: true },
-          { column_name: 'stock', data_type: 'integer', is_nullable: true },
-        ],
-      },
-    };
+  // Return empty schema if not connected instead of throwing
+  if (!client) {
+    return {};
   }
 
   try {
+    // Use single ListTablesCommand call without schema filter to get ALL tables
+    // This matches the Python approach and is more efficient
+    const allTables: Array<{ schema?: string; name?: string; type?: string }> = [];
+    let nextToken: string | undefined;
+
+    do {
+      const listTablesCommand = new ListTablesCommand({
+        Database: config.database,
+        WorkgroupName: config.workgroupName,
+        NextToken: nextToken,
+      });
+
+      const response = await client.send(listTablesCommand);
+
+      if (response.Tables) {
+        allTables.push(...response.Tables);
+      }
+      nextToken = response.NextToken;
+    } while (nextToken);
+
+    // Organize tables by schema (same logic as Python's organize_schema_and_tables)
+    const schemasResult: Record<string, string[]> = {};
+
+    for (const table of allTables) {
+      const schemaName = table.schema;
+      const tableName = table.name;
+
+      // Skip system schemas and system tables
+      if (!schemaName || !tableName) continue;
+      if (['pg_catalog', 'information_schema', 'pg_internal'].includes(schemaName)) continue;
+      if (table.type === 'SYSTEM TABLE') continue;
+
+      // Initialize schema array if not exists
+      if (!schemasResult[schemaName]) {
+        schemasResult[schemaName] = [];
+      }
+
+      // Add table if not already present
+      if (!schemasResult[schemaName].includes(tableName)) {
+        schemasResult[schemaName].push(tableName);
+      }
+    }
+
+    // Sort tables within each schema
+    for (const schema of Object.keys(schemasResult)) {
+      schemasResult[schema].sort();
+    }
+
+    return schemasResult;
+  } catch (error: any) {
+    // Fallback: try SQL query method
+    return await getSchemaViaSql();
+  }
+}
+
+// Fallback method using SQL query
+async function getSchemaViaSql(): Promise<any> {
+  if (!client || !connected) {
+    return {};
+  }
+
+  try {
+    // Try information_schema which is more reliable than pg_table_def
     const query = `
       SELECT
-        schemaname AS schema_name,
-        tablename AS table_name,
-        "column" AS column_name,
-        type AS data_type
-      FROM pg_table_def
-      WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
-      ORDER BY schemaname, tablename
+        table_schema AS schema_name,
+        table_name
+      FROM information_schema.tables
+      WHERE table_schema NOT IN ('pg_catalog', 'information_schema', 'pg_internal')
+        AND table_type = 'BASE TABLE'
+      ORDER BY table_schema, table_name
     `;
 
     const result = await executeQuery(query);
 
-    // Group by schema and table
-    const schemas: Record<string, Record<string, any[]>> = {};
+    // Group by schema
+    const schemas: Record<string, string[]> = {};
     for (const row of result.rows) {
       const schemaName = row.schema_name;
       const tableName = row.table_name;
 
       if (!schemas[schemaName]) {
-        schemas[schemaName] = {};
+        schemas[schemaName] = [];
       }
-      if (!schemas[schemaName][tableName]) {
-        schemas[schemaName][tableName] = [];
-      }
-
-      schemas[schemaName][tableName].push({
-        column_name: row.column_name,
-        data_type: row.data_type,
-      });
+      schemas[schemaName].push(tableName);
     }
 
     return schemas;
   } catch (error: any) {
-    console.error('Failed to get Redshift schema:', error.message);
     return {};
   }
 }
 
 export async function getHealthStatus(): Promise<any> {
-  if (!client || !connected) {
-    return {
-      status: 'healthy', // Return healthy for demo mode
-      connected: true,
-      message: 'Redshift running in demo mode (sample data)',
-    };
+  // Actually test the connection with a simple query and WAIT for it to complete
+  // AWS validates credentials during waitForStatement, not during executeStatement
+  if (client) {
+    try {
+      const statementId = await executeStatement('SELECT 1');
+      if (statementId) {
+        // Wait for the query to complete - this validates credentials
+        await waitForStatement(statementId, 10000); // 10 second timeout for health check
+        connected = true;
+        connectionError = null;
+        return {
+          status: 'connected',
+          connected: true,
+          workgroup: config.workgroupName,
+          database: config.database,
+          region: config.region,
+        };
+      }
+    } catch (error: any) {
+      connected = false;
+      connectionError = error.message;
+    }
   }
 
-  try {
-    // Test with a simple query
-    await executeQuery('SELECT 1');
-    return {
-      status: 'healthy',
-      connected: true,
-      workgroup: config.workgroupName,
-      database: config.database,
-      region: config.region,
-    };
-  } catch (error: any) {
-    return {
-      status: 'unhealthy',
-      connected: false,
-      error: error.message,
-    };
-  }
+  return {
+    status: 'disconnected',
+    connected: false,
+    error: connectionError || 'Redshift not initialized',
+    workgroup: config.workgroupName,
+    database: config.database,
+  };
 }

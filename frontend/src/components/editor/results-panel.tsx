@@ -124,9 +124,9 @@ export function ResultsPanel({ result, colorScheme, errorLine, queryText }: Resu
   };
 
   return (
-    <div className="h-[450px] border-t border-outline-variant flex flex-col flex-shrink-0">
+    <div className="flex-1 min-h-[350px] border-t border-outline-variant flex flex-col">
       <Tabs defaultValue="results" className="flex flex-col h-full">
-        <div className="flex items-center justify-between px-4 py-2 bg-surface-container border-b border-outline-variant gap-4">
+        <div className="flex items-center justify-between px-3 py-1.5 bg-surface-container border-b border-outline-variant gap-3">
           <div className="flex items-center gap-2 flex-shrink-0">
             <TabsList>
               <TabsTrigger value="results" colorScheme={colorScheme}>
@@ -252,7 +252,7 @@ export function ResultsPanel({ result, colorScheme, errorLine, queryText }: Resu
                       <th
                         key={column}
                         className={cn(
-                          "px-4 py-2 text-left font-semibold",
+                          "px-3 py-1.5 text-left font-semibold",
                           "bg-surface-container text-on-surface-variant",
                           "border-b border-outline-variant",
                           "sticky top-0 z-10 whitespace-nowrap"
@@ -277,7 +277,7 @@ export function ResultsPanel({ result, colorScheme, errorLine, queryText }: Resu
                       {result.columns.map((column) => (
                         <td
                           key={column}
-                          className="px-4 py-2 font-mono text-[11px] whitespace-nowrap"
+                          className="px-3 py-1 font-mono text-[11px] whitespace-nowrap"
                         >
                           {formatValue(row[column])}
                         </td>
@@ -290,7 +290,7 @@ export function ResultsPanel({ result, colorScheme, errorLine, queryText }: Resu
 
               {/* Pagination footer - positioned at the bottom */}
               {totalPages > 1 && (
-                <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-4 py-2 bg-surface-container border-t border-outline-variant">
+                <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-1.5 bg-surface-container border-t border-outline-variant">
                   <span className="text-[11px] text-on-surface-variant">
                     Showing {startIndex + 1}-{endIndex} of {totalRows} rows
                   </span>
@@ -328,7 +328,7 @@ export function ResultsPanel({ result, colorScheme, errorLine, queryText }: Resu
                   <tr>
                     <th
                       className={cn(
-                        "px-4 py-2 text-left font-semibold",
+                        "px-3 py-1.5 text-left font-semibold",
                         "bg-surface-container text-on-surface-variant",
                         "border-b border-outline-variant",
                         "sticky top-0 z-10 whitespace-nowrap"
@@ -338,7 +338,7 @@ export function ResultsPanel({ result, colorScheme, errorLine, queryText }: Resu
                     </th>
                     <th
                       className={cn(
-                        "px-4 py-2 text-left font-semibold",
+                        "px-3 py-1.5 text-left font-semibold",
                         "bg-surface-container text-on-surface-variant",
                         "border-b border-outline-variant",
                         "sticky top-0 z-10 whitespace-nowrap"
@@ -348,7 +348,7 @@ export function ResultsPanel({ result, colorScheme, errorLine, queryText }: Resu
                     </th>
                     <th
                       className={cn(
-                        "px-4 py-2 text-left font-semibold",
+                        "px-3 py-1.5 text-left font-semibold",
                         "bg-surface-container text-on-surface-variant",
                         "border-b border-outline-variant",
                         "sticky top-0 z-10 whitespace-nowrap"
@@ -373,14 +373,14 @@ export function ResultsPanel({ result, colorScheme, errorLine, queryText }: Resu
                           colorScheme === "sqlserver" && "hover:bg-sqlserver-tint"
                         )}
                       >
-                        <td className="px-4 py-2 font-mono text-[11px] text-on-surface-variant">
+                        <td className="px-3 py-1 font-mono text-[11px] text-on-surface-variant">
                           {index + 1}
                         </td>
-                        <td className="px-4 py-2 font-mono text-[11px] whitespace-nowrap">
+                        <td className="px-3 py-1 font-mono text-[11px] whitespace-nowrap">
                           {column}
                         </td>
                         <td className={cn(
-                          "px-4 py-2 font-mono text-[11px] whitespace-nowrap",
+                          "px-3 py-1 font-mono text-[11px] whitespace-nowrap",
                           colorScheme === "redshift" ? "text-redshift" : "text-sqlserver"
                         )}>
                           {columnTypes[column] || "UNKNOWN"}
@@ -401,12 +401,12 @@ export function ResultsPanel({ result, colorScheme, errorLine, queryText }: Resu
 
         <TabsContent value="messages" className="flex-1 overflow-auto m-0">
           {result?.error ? (
-            <div className="p-4">
-              <div className="rounded-lg bg-red-500/10 border border-red-500/30 p-4">
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-red-500/20 flex items-center justify-center">
+            <div className="p-3">
+              <div className="rounded-lg bg-red-500/10 border border-red-500/30 p-3">
+                <div className="flex items-start gap-2">
+                  <div className="flex-shrink-0 w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center">
                     <svg
-                      className="w-4 h-4 text-red-400"
+                      className="w-3.5 h-3.5 text-red-400"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -420,18 +420,18 @@ export function ResultsPanel({ result, colorScheme, errorLine, queryText }: Resu
                     </svg>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-semibold text-red-400 mb-2">
+                    <h4 className="text-xs font-semibold text-red-400 mb-1">
                       Query Error{errorLine ? ` (Line ${errorLine})` : ''}
                     </h4>
                     {errorLineContent && (
-                      <div className="mb-3 p-2 bg-red-500/20 border border-red-500/40 rounded">
-                        <div className="text-[10px] text-red-300 mb-1 font-semibold">Error Line:</div>
-                        <code className="text-xs text-red-100 font-mono">
+                      <div className="mb-2 p-1.5 bg-red-500/20 border border-red-500/40 rounded">
+                        <div className="text-[9px] text-red-300 mb-0.5 font-semibold">Error Line:</div>
+                        <code className="text-[11px] text-red-100 font-mono">
                           {errorLineContent}
                         </code>
                       </div>
                     )}
-                    <pre className="text-xs text-red-200 font-mono whitespace-pre-wrap break-words">
+                    <pre className="text-[11px] text-red-200 font-mono whitespace-pre-wrap break-words">
                       {result.error}
                     </pre>
                   </div>
@@ -439,21 +439,21 @@ export function ResultsPanel({ result, colorScheme, errorLine, queryText }: Resu
               </div>
             </div>
           ) : result?.message ? (
-            <div className="p-4">
+            <div className="p-3">
               <div className={cn(
-                "rounded-lg border p-4",
+                "rounded-lg border p-3",
                 colorScheme === "redshift" && "bg-redshift/10 border-redshift/30",
                 colorScheme === "sqlserver" && "bg-sqlserver/10 border-sqlserver/30"
               )}>
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-2">
                   <div className={cn(
-                    "flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center",
+                    "flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center",
                     colorScheme === "redshift" && "bg-redshift/20",
                     colorScheme === "sqlserver" && "bg-sqlserver/20"
                   )}>
                     <svg
                       className={cn(
-                        "w-4 h-4",
+                        "w-3.5 h-3.5",
                         colorScheme === "redshift" && "text-redshift",
                         colorScheme === "sqlserver" && "text-sqlserver"
                       )}
@@ -471,13 +471,13 @@ export function ResultsPanel({ result, colorScheme, errorLine, queryText }: Resu
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className={cn(
-                      "text-sm font-semibold mb-2",
+                      "text-xs font-semibold mb-1",
                       colorScheme === "redshift" && "text-redshift",
                       colorScheme === "sqlserver" && "text-sqlserver"
                     )}>
                       Message
                     </h4>
-                    <pre className="text-xs text-on-surface-variant font-mono whitespace-pre-wrap break-words">
+                    <pre className="text-[11px] text-on-surface-variant font-mono whitespace-pre-wrap break-words">
                       {result.message}
                     </pre>
                   </div>

@@ -9,13 +9,12 @@ import { ragRoutes } from './routes/rag';
 import { authRoutes } from './routes/auth';
 import { usersRoutes } from './routes/users';
 import { logsRoutes } from './routes/logs';
-import { initSqlServer, closeSqlServer } from './services/database/sqlserver';
-import { initRedshift, closeRedshift } from './services/database/redshift';
+import { initSqlServer, closeSqlServer, getHealthStatus as getSqlServerHealth } from './services/database/sqlserver';
+import { initRedshift, closeRedshift, getHealthStatus as getRedshiftHealth } from './services/database/redshift';
 import { storageService } from './services/storage-service';
 import { schedulerService } from './services/scheduler-service';
 import { websocketHandlers } from './utils/websocket';
 import { requestIdMiddleware, requestLoggerMiddleware, errorHandler, notFoundHandler } from './middleware/error-handler';
-import { authMiddleware, optionalAuthMiddleware } from './middleware/auth';
 import { logger } from './utils/logger';
 
 const app = new Hono();
@@ -102,17 +101,35 @@ app.get('/health', (c) => {
 // Auth routes (no auth required for login)
 app.route('/auth', authRoutes);
 
-// Protected routes - require authentication
-app.use('/sqlserver/*', authMiddleware);
-app.use('/redshift/*', authMiddleware);
-app.use('/jobs/*', authMiddleware);
-app.use('/storage/*', authMiddleware);
-app.use('/users/*', authMiddleware);
-app.use('/logs/*', authMiddleware);
+// Health endpoints for each service (no auth required)
+app.get('/sqlserver/health', async (c) => {
+  try {
+    const health = await getSqlServerHealth();
+    return c.json(health, health.connected ? 200 : 503);
+  } catch (error) {
+    return c.json({ status: 'disconnected', connected: false, error: (error as Error).message }, 503);
+  }
+});
 
-// Optional auth for AI routes (can work without auth)
-app.use('/ai/*', optionalAuthMiddleware);
-app.use('/rag/*', optionalAuthMiddleware);
+app.get('/redshift/health', async (c) => {
+  try {
+    const health = await getRedshiftHealth();
+    return c.json(health, health.connected ? 200 : 503);
+  } catch (error) {
+    return c.json({ status: 'disconnected', connected: false, error: (error as Error).message }, 503);
+  }
+});
+
+app.get('/storage/health', async (c) => {
+  try {
+    const health = await storageService.healthCheck();
+    return c.json({ status: health.connected ? 'connected' : 'disconnected', ...health }, health.connected ? 200 : 503);
+  } catch (error) {
+    return c.json({ status: 'disconnected', connected: false, error: (error as Error).message }, 503);
+  }
+});
+
+// Routes are now public (no auth required)
 
 // Mount routes
 app.route('/sqlserver', sqlRoutes);
@@ -213,14 +230,14 @@ process.on('unhandledRejection', (reason) => {
   console.error('Unhandled rejection:', reason);
 });
 
-// Start server
-startup();
-
+// Start server - wait for initialization to complete
 const port = parseInt(process.env.PORT || '8080');
+await startup();
 console.log(`🌐 Server running on http://localhost:${port}`);
 
 export default {
   port,
+  idleTimeout: 120, // 2 minutes timeout for long-running queries (default is 10s)
   fetch(req: Request, server: any) {
     // Check if this is a WebSocket upgrade request for /ws/* paths
     const url = new URL(req.url);

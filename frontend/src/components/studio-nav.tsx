@@ -16,6 +16,7 @@ interface NavItem {
   shortLabel: string;
   icon: LucideIcon;
   colour: string;
+  disabled?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -27,32 +28,11 @@ const navItems: NavItem[] = [
     colour: "amber",
   },
   {
-    href: "/ai",
-    label: "AI Assistant",
-    shortLabel: "AI",
-    icon: Sparkles,
-    colour: "violet",
-  },
-  {
-    href: "/dashboard",
-    label: "Dashboard",
-    shortLabel: "Dashboard",
-    icon: LayoutDashboard,
-    colour: "cyan",
-  },
-  {
     href: "/jobs",
     label: "Jobs",
     shortLabel: "Jobs",
     icon: Calendar,
     colour: "emerald",
-  },
-  {
-    href: "/logs",
-    label: "Logs",
-    shortLabel: "Logs",
-    icon: BarChart3,
-    colour: "rose",
   },
   {
     href: "/storage",
@@ -61,38 +41,68 @@ const navItems: NavItem[] = [
     icon: HardDrive,
     colour: "orange",
   },
+  {
+    href: "/ai",
+    label: "AI Assistant",
+    shortLabel: "AI",
+    icon: Sparkles,
+    colour: "violet",
+    disabled: true,
+  },
+  {
+    href: "/dashboard",
+    label: "Dashboard",
+    shortLabel: "Dashboard",
+    icon: LayoutDashboard,
+    colour: "cyan",
+    disabled: true,
+  },
+  {
+    href: "/logs",
+    label: "Logs",
+    shortLabel: "Logs",
+    icon: BarChart3,
+    colour: "rose",
+    disabled: true,
+  },
 ];
 
-const colourClasses: Record<string, { active: string; inactive: string; icon: string }> = {
+const colourClasses: Record<string, { active: string; inactive: string; icon: string; disabled: string }> = {
   amber: {
     active: "bg-amber-500/20 text-amber-400 border-amber-500/30",
     inactive: "text-neutral-400 hover:text-amber-400 hover:bg-amber-500/10",
     icon: "text-amber-400",
-  },
-  violet: {
-    active: "bg-violet-500/20 text-violet-400 border-violet-500/30",
-    inactive: "text-neutral-400 hover:text-violet-400 hover:bg-violet-500/10",
-    icon: "text-violet-400",
-  },
-  cyan: {
-    active: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
-    inactive: "text-neutral-400 hover:text-cyan-400 hover:bg-cyan-500/10",
-    icon: "text-cyan-400",
+    disabled: "text-neutral-600 cursor-not-allowed",
   },
   emerald: {
     active: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
     inactive: "text-neutral-400 hover:text-emerald-400 hover:bg-emerald-500/10",
     icon: "text-emerald-400",
-  },
-  rose: {
-    active: "bg-rose-500/20 text-rose-400 border-rose-500/30",
-    inactive: "text-neutral-400 hover:text-rose-400 hover:bg-rose-500/10",
-    icon: "text-rose-400",
+    disabled: "text-neutral-600 cursor-not-allowed",
   },
   orange: {
     active: "bg-orange-500/20 text-orange-400 border-orange-500/30",
     inactive: "text-neutral-400 hover:text-orange-400 hover:bg-orange-500/10",
     icon: "text-orange-400",
+    disabled: "text-neutral-600 cursor-not-allowed",
+  },
+  violet: {
+    active: "bg-violet-500/20 text-violet-400 border-violet-500/30",
+    inactive: "text-neutral-400 hover:text-violet-400 hover:bg-violet-500/10",
+    icon: "text-violet-400",
+    disabled: "text-neutral-600 cursor-not-allowed",
+  },
+  cyan: {
+    active: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+    inactive: "text-neutral-400 hover:text-cyan-400 hover:bg-cyan-500/10",
+    icon: "text-cyan-400",
+    disabled: "text-neutral-600 cursor-not-allowed",
+  },
+  rose: {
+    active: "bg-rose-500/20 text-rose-400 border-rose-500/30",
+    inactive: "text-neutral-400 hover:text-rose-400 hover:bg-rose-500/10",
+    icon: "text-rose-400",
+    disabled: "text-neutral-600 cursor-not-allowed",
   },
 };
 
@@ -134,6 +144,22 @@ export function StudioNav({ showBackToHome = true, className = "" }: StudioNavPr
           const colours = colourClasses[item.colour];
           const Icon = item.icon;
 
+          if (item.disabled) {
+            return (
+              <span
+                key={item.href}
+                className={`
+                  flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium
+                  ${colours.disabled} opacity-50
+                `}
+                title={`${item.label} (Coming Soon)`}
+              >
+                <Icon className="w-4 h-4" />
+                <span className="hidden md:inline">{item.shortLabel}</span>
+              </span>
+            );
+          }
+
           return (
             <Link
               key={item.href}
@@ -171,6 +197,21 @@ export function StudioNavCompact({ className = "" }: { className?: string }) {
         const active = isActive(item.href);
         const colours = colourClasses[item.colour];
         const Icon = item.icon;
+
+        if (item.disabled) {
+          return (
+            <span
+              key={item.href}
+              className={`
+                flex items-center justify-center p-2 rounded-lg
+                ${colours.disabled} opacity-50
+              `}
+              title={`${item.label} (Coming Soon)`}
+            >
+              <Icon className="w-4 h-4" />
+            </span>
+          );
+        }
 
         return (
           <Link

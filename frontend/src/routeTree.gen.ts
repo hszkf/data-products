@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as StorageRouteImport } from './routes/storage'
 import { Route as SqlRouteImport } from './routes/sql'
 import { Route as LogsRouteImport } from './routes/logs'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AiRouteImport } from './routes/ai'
@@ -39,11 +38,6 @@ const SqlRoute = SqlRouteImport.update({
 const LogsRoute = LogsRouteImport.update({
   id: '/logs',
   path: '/logs',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JobsRoute = JobsRouteImport.update({
@@ -113,7 +107,6 @@ export interface FileRoutesByFullPath {
   '/ai': typeof AiRoute
   '/dashboard': typeof DashboardRoute
   '/jobs': typeof JobsRouteWithChildren
-  '/login': typeof LoginRoute
   '/logs': typeof LogsRoute
   '/sql': typeof SqlRoute
   '/storage': typeof StorageRoute
@@ -129,7 +122,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
   '/dashboard': typeof DashboardRoute
-  '/login': typeof LoginRoute
   '/logs': typeof LogsRoute
   '/sql': typeof SqlRoute
   '/storage': typeof StorageRoute
@@ -148,7 +140,6 @@ export interface FileRoutesById {
   '/ai': typeof AiRoute
   '/dashboard': typeof DashboardRoute
   '/jobs': typeof JobsRouteWithChildren
-  '/login': typeof LoginRoute
   '/logs': typeof LogsRoute
   '/sql': typeof SqlRoute
   '/storage': typeof StorageRoute
@@ -168,7 +159,6 @@ export interface FileRouteTypes {
     | '/ai'
     | '/dashboard'
     | '/jobs'
-    | '/login'
     | '/logs'
     | '/sql'
     | '/storage'
@@ -184,7 +174,6 @@ export interface FileRouteTypes {
     | '/'
     | '/ai'
     | '/dashboard'
-    | '/login'
     | '/logs'
     | '/sql'
     | '/storage'
@@ -202,7 +191,6 @@ export interface FileRouteTypes {
     | '/ai'
     | '/dashboard'
     | '/jobs'
-    | '/login'
     | '/logs'
     | '/sql'
     | '/storage'
@@ -221,7 +209,6 @@ export interface RootRouteChildren {
   AiRoute: typeof AiRoute
   DashboardRoute: typeof DashboardRoute
   JobsRoute: typeof JobsRouteWithChildren
-  LoginRoute: typeof LoginRoute
   LogsRoute: typeof LogsRoute
   SqlRoute: typeof SqlRoute
   StorageRoute: typeof StorageRoute
@@ -248,13 +235,6 @@ declare module '@tanstack/react-router' {
       path: '/logs'
       fullPath: '/logs'
       preLoaderRoute: typeof LogsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/jobs': {
@@ -390,7 +370,6 @@ const rootRouteChildren: RootRouteChildren = {
   AiRoute: AiRoute,
   DashboardRoute: DashboardRoute,
   JobsRoute: JobsRouteWithChildren,
-  LoginRoute: LoginRoute,
   LogsRoute: LogsRoute,
   SqlRoute: SqlRoute,
   StorageRoute: StorageRoute,

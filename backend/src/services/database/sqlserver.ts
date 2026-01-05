@@ -149,10 +149,11 @@ export async function getSchema(): Promise<any> {
 export async function getHealthStatus(): Promise<any> {
   try {
     const poolInstance = await getPool();
-    const result = await poolInstance.request().query('SELECT 1 as healthy');
+    await poolInstance.request().query('SELECT 1 as healthy');
 
+    console.log(`[SQL Server Health] connected=true`);
     return {
-      status: 'healthy',
+      status: 'connected',
       connected: true,
       pool: {
         size: poolInstance.pool?.size || 0,
@@ -161,8 +162,9 @@ export async function getHealthStatus(): Promise<any> {
       },
     };
   } catch (error: any) {
+    console.log(`[SQL Server Health] connected=false, error=${error.message}`);
     return {
-      status: 'unhealthy',
+      status: 'disconnected',
       connected: false,
       error: error.message,
     };

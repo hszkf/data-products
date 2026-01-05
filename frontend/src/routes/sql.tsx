@@ -34,16 +34,16 @@ function SQLPage() {
             }}
           />
 
-          <AppHeader />
-
           {/* Main Content - Scrollable */}
           <main className="flex-1 overflow-auto relative">
+            <AppHeader />
+
             {/* Database Editors - Side by Side */}
             <div className="flex flex-col lg:flex-row bg-outline-variant">
-              <div className="flex-1 min-h-[600px] lg:min-h-[920px] border-b lg:border-b-0 lg:border-r border-outline-variant">
+              <div className="flex-1 min-h-[650px] lg:min-h-[800px] border-b lg:border-b-0 lg:border-r border-outline-variant">
                 <EditorPanel type="redshift" defaultQuery={defaultRedshiftQuery} />
               </div>
-              <div className="flex-1 min-h-[600px] lg:min-h-[920px]">
+              <div className="flex-1 min-h-[650px] lg:min-h-[800px]">
                 <EditorPanel type="sqlserver" defaultQuery={defaultSqlServerQuery} />
               </div>
             </div>

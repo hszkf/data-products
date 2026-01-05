@@ -131,6 +131,16 @@ export function getAuthToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
 
+// Helper function to get auth headers
+export function getAuthHeaders(): Headers {
+  const token = getAuthToken();
+  const headers = new Headers();
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  return headers;
+}
+
 // Helper function to create authenticated fetch
 export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const token = getAuthToken();

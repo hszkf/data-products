@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Terminal, Settings, History, Plus, LucideIcon, User, LogOut, KeyRound, Shield } from "lucide-react";
+import { Terminal, Settings, History, LucideIcon, User, LogOut, KeyRound, Shield } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import {
   Tooltip,
@@ -37,7 +37,7 @@ export function AppHeader({
 
   const handleLogout = async () => {
     await logout();
-    window.location.href = '/login';
+    window.location.href = '/';
   };
 
   const navigateTo = (path: string) => {
@@ -58,25 +58,25 @@ export function AppHeader({
   };
 
   return (
-    <header className="bg-surface-container/80 backdrop-blur-sm border-b border-outline-variant/50 sticky top-0 z-20 flex-shrink-0">
+    <header className="bg-surface-container/80 backdrop-blur-sm border-b border-outline-variant/50 flex-shrink-0">
       {/* Navigation Bar */}
       {showNav && (
-        <div className="px-6 py-3 border-b border-outline-variant/30">
+        <div className="px-4 py-2 border-b border-outline-variant/30">
           <StudioNav />
         </div>
       )}
 
       {/* Page Header */}
-      <div className="flex items-center justify-between px-6 py-4">
-        <Link to="/" className="flex items-center gap-3 group">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${iconClassName} group-hover:scale-105 transition-transform shadow-lg`}>
-            <Icon className="w-5 h-5 text-white" />
+      <div className="flex items-center justify-between px-4 py-2">
+        <Link to="/" className="flex items-center gap-2 group">
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${iconClassName} group-hover:scale-105 transition-transform shadow-md`}>
+            <Icon className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight text-on-surface">
+            <h1 className="text-base font-semibold tracking-tight text-on-surface">
               {title}
             </h1>
-            <p className="text-xs text-on-surface-variant font-mono">
+            <p className="text-[11px] text-on-surface-variant font-mono">
               {subtitle}
             </p>
           </div>
@@ -101,16 +101,6 @@ export function AppHeader({
               </Button>
             </TooltipTrigger>
             <TooltipContent>Query History (Coming Soon)</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="tonal" disabled className="opacity-50 cursor-not-allowed">
-                <Plus className="w-[18px] h-[18px]" />
-                New Query
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>New Query (Coming Soon)</TooltipContent>
           </Tooltip>
 
           {/* User Menu */}
@@ -157,11 +147,7 @@ export function AppHeader({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          ) : (
-            <Button variant="tonal" onClick={() => navigateTo('/login')}>
-              Sign In
-            </Button>
-          )}
+          ) : null}
         </div>
       </div>
     </header>

@@ -24,6 +24,18 @@ export interface SchemaResult {
   status: "success" | "error";
   schemas: Record<string, string[]>;
   detail?: string;
+  cached?: boolean;
+  cacheInfo?: {
+    cachedAt?: string;
+    age?: string;
+  };
+}
+
+export interface ClearCacheResult {
+  status: "success" | "error";
+  database: string;
+  cleared: boolean;
+  message: string;
 }
 
 /**
@@ -136,15 +148,66 @@ export async function checkHealth(
 
 /**
  * Get schemas and tables for a database
+ * @param database - The database type
+ * @param refresh - If true, bypasses cache and fetches fresh data
  */
 export async function getSchemas(
-  database: "sqlserver" | "redshift"
+  database: "sqlserver" | "redshift",
+  refresh: boolean = false
 ): Promise<SchemaResult> {
   try {
-    const response = await fetch(`${API_BASE_URL}/${database}/schemas`);
+    const url = refresh
+      ? `${API_BASE_URL}/${database}/schema?refresh=true`
+      : `${API_BASE_URL}/${database}/schema`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    // Backend always returns { status, schemas } even on error
+    // Ensure schemas is always an object
+    return {
+      status: data.status || (response.ok ? "success" : "error"),
+      schemas: data.schemas || {},
+      detail: data.detail,
+      cached: data.cached,
+      cacheInfo: data.cacheInfo,
+    };
+  } catch (error) {
+    // Network or parsing error
+    if (error instanceof Error) {
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        return {
+          status: "error",
+          schemas: {},
+          detail: `Unable to connect to API server. Please check if the server is running.`,
+        };
+      }
+      return {
+        status: "error",
+        schemas: {},
+        detail: error.message,
+      };
+    }
+    return {
+      status: "error",
+      schemas: {},
+      detail: `An unexpected error occurred: ${String(error)}`,
+    };
+  }
+}
+
+/**
+ * Clear the schema cache for a database
+ */
+export async function clearSchemaCache(
+  database: "sqlserver" | "redshift"
+): Promise<ClearCacheResult> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/${database}/schema/cache`, {
+      method: "DELETE",
+    });
 
     if (!response.ok) {
-      let errorMessage = `Failed to fetch schemas with status ${response.status}`;
+      let errorMessage = `Failed to clear cache with status ${response.status}`;
       try {
         const errorData = await response.json();
         errorMessage = errorData.detail || errorData.message || errorMessage;
@@ -162,7 +225,7 @@ export async function getSchemas(
       }
       throw error;
     }
-    throw new Error(`An unexpected error occurred: ${String(error)}`);
+    throw new Error(`An unexpected error occurred while clearing cache: ${String(error)}`);
   }
 }
 

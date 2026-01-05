@@ -7,9 +7,6 @@ import {
   ChevronRight,
   ChevronDown,
   RefreshCw,
-  Search,
-  Upload,
-  FileSpreadsheet,
 } from "lucide-react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
@@ -22,44 +19,39 @@ import type { DatabaseType } from "./editor-panel";
 interface SchemaBrowserProps {
   type: DatabaseType;
   onTableSelect?: (tableName: string, database: string) => void;
+  refreshKey?: number;
 }
 
 interface SchemaData {
   [database: string]: string[];
 }
 
-export function SchemaBrowser({ type, onTableSelect }: SchemaBrowserProps) {
+export function SchemaBrowser({ type, onTableSelect, refreshKey = 0 }: SchemaBrowserProps) {
   const [schemas, setSchemas] = React.useState<SchemaData>({});
   const [expandedDbs, setExpandedDbs] = React.useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = React.useState("");
-  const [isUploading, setIsUploading] = React.useState(false);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { saveTable } = useMerge();
   const { showToast } = useToast();
 
-  const fetchSchemas = React.useCallback(async () => {
+  const fetchSchemas = React.useCallback(async (refresh: boolean = false) => {
     setIsLoading(true);
     setError(null);
     try {
-      const result = await getSchemas(type);
-      if (result.status === "success" && result.schemas) {
-        setSchemas(result.schemas);
-        setExpandedDbs(new Set());
-      } else {
-        setError(result.detail || "Failed to fetch schemas");
-      }
+      const result = await getSchemas(type, refresh);
+      setSchemas(result.schemas || {});
+      setExpandedDbs(new Set());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch schemas");
+      setSchemas({});
     } finally {
       setIsLoading(false);
     }
   }, [type]);
 
+  // Fetch on mount and when refreshKey changes
   React.useEffect(() => {
-    fetchSchemas();
-  }, [fetchSchemas]);
+    fetchSchemas(refreshKey > 0);
+  }, [fetchSchemas, refreshKey]);
 
   const toggleDatabase = (db: string) => {
     setExpandedDbs((prev) => {
@@ -79,15 +71,8 @@ export function SchemaBrowser({ type, onTableSelect }: SchemaBrowserProps) {
     }
   };
 
-  const handleUploadClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsUploading(true);
+  // Handle file upload from parent via custom event
+  const processFile = React.useCallback(async (file: File) => {
     try {
       const fileName = file.name;
       const extension = fileName.split(".").pop()?.toLowerCase();
@@ -150,164 +135,91 @@ export function SchemaBrowser({ type, onTableSelect }: SchemaBrowserProps) {
       showToast(`Uploaded "${tableName}" (${rows.length} rows)`, "success");
     } catch (err) {
       showToast("Failed to parse file", "error");
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
     }
-  };
+  }, [saveTable, showToast]);
 
-  const filteredSchemas = React.useMemo(() => {
-    if (!searchTerm) return schemas;
+  // Listen for file upload events from parent
+  React.useEffect(() => {
+    const handleFileUpload = (e: CustomEvent<File>) => {
+      processFile(e.detail);
+    };
 
-    const filtered: SchemaData = {};
-    const term = searchTerm.toLowerCase();
-
-    Object.entries(schemas).forEach(([db, tables]) => {
-      const matchingTables = tables.filter((table) =>
-        table.toLowerCase().includes(term)
-      );
-      if (matchingTables.length > 0 || db.toLowerCase().includes(term)) {
-        filtered[db] = matchingTables.length > 0 ? matchingTables : tables;
-      }
-    });
-
-    return filtered;
-  }, [schemas, searchTerm]);
+    window.addEventListener('explorer-file-upload', handleFileUpload as EventListener);
+    return () => {
+      window.removeEventListener('explorer-file-upload', handleFileUpload as EventListener);
+    };
+  }, [processFile]);
 
   return (
-    <div className="flex flex-col h-full bg-surface-container overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-outline-variant">
-        <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
-          Explorer
-        </span>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={handleUploadClick}
-            disabled={isUploading}
-            className={cn(
-              "p-1 rounded transition-colors",
-              "text-green-400 hover:bg-green-400/20",
-              isUploading && "opacity-50"
-            )}
-            title="Upload CSV/Excel"
-          >
-            <Upload className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={fetchSchemas}
-            disabled={isLoading}
-            className={cn(
-              "p-1 rounded hover:bg-surface-container-high transition-colors",
-              "text-on-surface-variant hover:text-on-surface",
-              isLoading && "animate-spin"
-            )}
-            title="Refresh"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-          </button>
+    <div className="flex flex-col h-full bg-transparent overflow-hidden">
+      {/* Content - Scrollable area */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {/* Tables Section Header */}
+        <div className="sticky top-0 z-10 flex items-center gap-2 px-3 py-2 border-b border-outline-variant/30 bg-surface-container/95 backdrop-blur-sm">
+          <Database className={cn(
+            "w-3.5 h-3.5",
+            type === "redshift" ? "text-redshift" : "text-sqlserver"
+          )} />
+          <span className="text-xs font-medium text-on-surface">Tables</span>
+          <span className="text-[10px] text-on-surface-variant ml-auto">
+            {isLoading ? "..." : Object.values(schemas).flat().length}
+          </span>
         </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".csv,.xlsx,.xls"
-          onChange={handleFileChange}
-          className="hidden"
-        />
-      </div>
 
-      {/* Search */}
-      <div className="px-2 py-2 border-b border-outline-variant">
-        <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-outline" />
-          <input
-            type="text"
-            placeholder="Search..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className={cn(
-              "w-full pl-7 pr-2 py-1.5 text-xs",
-              "bg-surface rounded border border-outline-variant",
-              "text-on-surface placeholder:text-outline",
-              "focus:outline-none",
-              type === "redshift" ? "focus:border-redshift" : "focus:border-sqlserver"
-            )}
-          />
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-auto">
-        {/* Tables Section */}
-        <div>
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-outline-variant">
-            <Database className={cn(
-              "w-3.5 h-3.5",
-              type === "redshift" ? "text-redshift" : "text-sqlserver"
-            )} />
-            <span className="text-xs font-medium text-on-surface">Tables</span>
-            <span className="text-[10px] text-on-surface-variant ml-auto">
-              {Object.values(schemas).flat().length}
-            </span>
-          </div>
-
-          <div className="pb-2">
-              {/* Database Schemas */}
-              {isLoading ? (
-                <div className="flex items-center justify-center py-4 text-on-surface-variant">
-                  <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-                  <span className="text-xs">Loading...</span>
-                </div>
-              ) : error ? (
-                <div className="px-3 py-2 text-xs text-red-400">{error}</div>
-              ) : Object.keys(filteredSchemas).length === 0 ? (
-                <div className="px-3 py-2 text-xs text-on-surface-variant">No tables found</div>
-              ) : (
-                Object.entries(filteredSchemas).map(([database, tables]) => (
-                  <div key={database}>
-                    <button
-                      onClick={() => toggleDatabase(database)}
-                      className={cn(
-                        "w-full flex items-center gap-1 px-3 py-1 ml-2",
-                        "hover:bg-surface-container-high transition-colors",
-                        "text-left"
-                      )}
-                    >
-                      {expandedDbs.has(database) ? (
-                        <ChevronDown className="w-3 h-3 text-on-surface-variant flex-shrink-0" />
-                      ) : (
-                        <ChevronRight className="w-3 h-3 text-on-surface-variant flex-shrink-0" />
-                      )}
-                      <span className="text-xs text-on-surface truncate">{database}</span>
-                      <span className="text-[10px] text-on-surface-variant ml-auto">{tables.length}</span>
-                    </button>
-
-                    {expandedDbs.has(database) && (
-                      <div className="ml-6">
-                        {tables.map((table) => (
-                          <button
-                            key={`${database}.${table}`}
-                            onClick={() => handleTableClick(table, database)}
-                            className={cn(
-                              "w-full flex items-center gap-1.5 px-2 py-1",
-                              "hover:bg-surface-container-high transition-colors",
-                              "text-left group"
-                            )}
-                          >
-                            <Table className="w-3 h-3 text-on-surface-variant flex-shrink-0" />
-                            <span className="text-xs text-on-surface-variant group-hover:text-on-surface truncate">
-                              {table}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
+        {/* Table list */}
+        <div className="pb-2">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8 text-on-surface-variant">
+              <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+              <span className="text-xs">Loading schemas...</span>
             </div>
+          ) : error ? (
+            <div className="px-3 py-2 text-xs text-red-400">{error}</div>
+          ) : Object.keys(schemas).length === 0 ? (
+            <div className="px-3 py-2 text-xs text-on-surface-variant">No tables found</div>
+          ) : (
+            Object.entries(schemas).map(([database, tables]) => (
+              <div key={database}>
+                <button
+                  onClick={() => toggleDatabase(database)}
+                  className={cn(
+                    "w-full flex items-center gap-1 px-3 py-1.5",
+                    "hover:bg-surface-container-high/50 transition-colors",
+                    "text-left"
+                  )}
+                >
+                  {expandedDbs.has(database) ? (
+                    <ChevronDown className="w-3 h-3 text-on-surface-variant flex-shrink-0" />
+                  ) : (
+                    <ChevronRight className="w-3 h-3 text-on-surface-variant flex-shrink-0" />
+                  )}
+                  <span className="text-xs text-on-surface truncate">{database}</span>
+                  <span className="text-[10px] text-on-surface-variant ml-auto pr-2">{tables.length}</span>
+                </button>
+
+                {expandedDbs.has(database) && (
+                  <div className="ml-4">
+                    {tables.map((table) => (
+                      <button
+                        key={`${database}.${table}`}
+                        onClick={() => handleTableClick(table, database)}
+                        className={cn(
+                          "w-full flex items-center gap-1.5 px-3 py-1",
+                          "hover:bg-surface-container-high/50 transition-colors",
+                          "text-left group"
+                        )}
+                      >
+                        <Table className="w-3 h-3 text-on-surface-variant flex-shrink-0" />
+                        <span className="text-xs text-on-surface-variant group-hover:text-on-surface truncate">
+                          {table}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

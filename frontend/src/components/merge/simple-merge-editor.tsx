@@ -146,17 +146,18 @@ export function SimpleMergeEditor() {
 
   return (
     <div className="flex flex-col bg-surface min-h-[900px]">
-      {/* Panel Header */}
-      <div className="flex items-center justify-between px-4 py-3 flex-shrink-0 border-b border-outline-variant bg-gradient-to-r from-redshift/10 via-surface-container to-sqlserver/10">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-redshift/20 to-sqlserver/20">
-            <Combine className="w-[18px] h-[18px] text-on-surface" />
+      {/* Panel Header - Gradient theme (Redshift + SQL Server) */}
+      <div className="flex items-center justify-between px-2 py-1.5 flex-shrink-0 border-b border-outline-variant bg-gradient-to-r from-redshift/10 via-surface-container to-sqlserver/10">
+        <div className="flex items-center gap-1.5">
+          <div className="w-6 h-6 rounded-md flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-redshift/20 to-sqlserver/20">
+            <div className="absolute inset-0 bg-gradient-to-br from-redshift/20 via-transparent to-sqlserver/20" />
+            <Combine className="w-3.5 h-3.5 text-on-surface relative z-10" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-on-surface leading-tight">
+            <h2 className="text-xs font-semibold text-on-surface leading-tight">
               Merge Editor
             </h2>
-            <span className="text-[11px] text-on-surface-variant flex items-center gap-1">
+            <span className="text-[10px] text-on-surface-variant flex items-center gap-1">
               <span
                 className={cn(
                   "w-1.5 h-1.5 rounded-full",
@@ -165,93 +166,115 @@ export function SimpleMergeEditor() {
               />
               {canMerge
                 ? "Ready to merge"
-                : "Run queries in both panels to enable"}
+                : "Run queries in both panels"}
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="icon"
-                size="icon"
-                onClick={() => setIsUploadDialogOpen(true)}
-              >
-                <Upload className="w-[18px] h-[18px]" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Upload Files to S3</TooltipContent>
-          </Tooltip>
-
-          <DropdownMenu.Root>
+          {/* Tool buttons group */}
+          <div className={cn(
+            "flex items-center gap-0.5 px-1 py-0.5 rounded-md",
+            "bg-surface-container/50 border border-outline-variant/30"
+          )}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <DropdownMenu.Trigger asChild>
-                  <Button variant="icon" size="icon">
-                    <Save className="w-[18px] h-[18px]" />
-                    <ChevronDown className="w-3 h-3 ml-0.5" />
-                  </Button>
-                </DropdownMenu.Trigger>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 rounded-md transition-all duration-150 hover:bg-gradient-to-r hover:from-redshift/20 hover:to-sqlserver/20"
+                  onClick={() => setIsUploadDialogOpen(true)}
+                >
+                  <Upload className="w-4 h-4" />
+                </Button>
               </TooltipTrigger>
-              <TooltipContent>Query Actions</TooltipContent>
+              <TooltipContent>Upload Files</TooltipContent>
             </Tooltip>
-            <DropdownMenu.Portal>
-              <DropdownMenu.Content
-                className={cn(
-                  "min-w-[160px] p-1 rounded-lg z-50",
-                  "bg-surface-container-highest shadow-elevation-3",
-                  "border border-outline-variant",
-                  "animate-in fade-in-0 zoom-in-95"
-                )}
-                sideOffset={5}
-                align="end"
-              >
-                <DropdownMenu.Item
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-2 text-sm rounded-md cursor-pointer",
-                    "text-on-surface hover:bg-surface-container-high",
-                    "outline-none",
-                    !query.trim() && "opacity-50 pointer-events-none"
-                  )}
-                  onClick={() => setIsSaveDialogOpen(true)}
-                  disabled={!query.trim()}
-                >
-                  <Save className="w-4 h-4" />
-                  Save Query
-                </DropdownMenu.Item>
-                <DropdownMenu.Item
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-2 text-sm rounded-md cursor-pointer",
-                    "text-on-surface hover:bg-surface-container-high",
-                    "outline-none"
-                  )}
-                  onClick={() => setIsImportDialogOpen(true)}
-                >
-                  <FileUp className="w-4 h-4" />
-                  Import Query
-                </DropdownMenu.Item>
-              </DropdownMenu.Content>
-            </DropdownMenu.Portal>
-          </DropdownMenu.Root>
 
+            <DropdownMenu.Root>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenu.Trigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        "h-7 px-1.5 rounded-md transition-all duration-150",
+                        "hover:bg-gradient-to-r hover:from-redshift/20 hover:to-sqlserver/20",
+                        !query.trim() && "opacity-40 cursor-not-allowed"
+                      )}
+                      disabled={!query.trim()}
+                    >
+                      <Save className="w-4 h-4" />
+                      <ChevronDown className="w-3 h-3 ml-0.5 opacity-60" />
+                    </Button>
+                  </DropdownMenu.Trigger>
+                </TooltipTrigger>
+                <TooltipContent>Query Actions</TooltipContent>
+              </Tooltip>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content
+                  className={cn(
+                    "min-w-[160px] p-1 rounded-lg z-50",
+                    "bg-surface-container-highest shadow-elevation-3",
+                    "border border-outline-variant",
+                    "animate-in fade-in-0 zoom-in-95"
+                  )}
+                  sideOffset={5}
+                  align="end"
+                >
+                  <DropdownMenu.Item
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-2 text-sm rounded-md cursor-pointer",
+                      "text-on-surface hover:bg-gradient-to-r hover:from-redshift/20 hover:to-sqlserver/20",
+                      "outline-none",
+                      !query.trim() && "opacity-50 pointer-events-none"
+                    )}
+                    onClick={() => setIsSaveDialogOpen(true)}
+                    disabled={!query.trim()}
+                  >
+                    <Save className="w-4 h-4" />
+                    Save Query
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-2 text-sm rounded-md cursor-pointer",
+                      "text-on-surface hover:bg-gradient-to-r hover:from-redshift/20 hover:to-sqlserver/20",
+                      "outline-none"
+                    )}
+                    onClick={() => setIsImportDialogOpen(true)}
+                  >
+                    <FileUp className="w-4 h-4" />
+                    Import Query
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+          </div>
+
+          {/* Run button - Redshift to SQL Server gradient */}
           <Button
             variant="run"
             size="sm"
             onClick={handleExecute}
             disabled={isLoading}
-            className="bg-gradient-to-r from-redshift to-sqlserver hover:from-redshift/90 hover:to-sqlserver/90"
+            className={cn(
+              "h-7 px-3 text-xs font-medium gap-1.5 rounded-md",
+              "bg-gradient-to-r from-redshift to-sqlserver",
+              "hover:from-redshift/90 hover:to-sqlserver/90",
+              "shadow-sm transition-all duration-150",
+              "hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+            )}
           >
-            <Play className="w-4 h-4" />
-            Run Merge
-            <span className="text-[10px] opacity-70 flex items-center gap-0.5">
-              <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px]">
-                ⌘
-              </kbd>
-              <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px]">
-                ↵
-              </kbd>
-            </span>
+            <Play className="w-3.5 h-3.5" />
+            <span>Merge</span>
+            <kbd className={cn(
+              "hidden sm:inline-flex items-center gap-0.5 ml-1",
+              "px-1 py-0.5 rounded text-[10px] font-mono",
+              "bg-white/15 text-white/80"
+            )}>
+              ⌘↵
+            </kbd>
           </Button>
         </div>
       </div>
@@ -284,7 +307,7 @@ export function SimpleMergeEditor() {
           {/* Results with Tabs */}
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <Tabs defaultValue="results" className="flex flex-col h-full">
-              <div className="flex items-center justify-between px-4 py-2 bg-surface-container border-b border-outline-variant gap-4">
+              <div className="flex items-center justify-between px-3 py-1.5 bg-gradient-to-r from-redshift/5 via-surface-container to-sqlserver/5 border-b border-outline-variant gap-3">
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <TabsList>
                     <TabsTrigger value="results" colorScheme="merge">
@@ -296,7 +319,7 @@ export function SimpleMergeEditor() {
                     <TabsTrigger value="messages" colorScheme="merge">
                       Messages
                       {result?.error && (
-                        <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-purple-500 text-white">
+                        <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-gradient-to-r from-redshift to-sqlserver text-white">
                           1
                         </span>
                       )}
@@ -409,8 +432,8 @@ export function SimpleMergeEditor() {
                             <th
                               key={column}
                               className={cn(
-                                "px-4 py-2 text-left font-semibold",
-                                "bg-surface-container text-on-surface-variant",
+                                "px-3 py-1.5 text-left font-semibold",
+                                "bg-gradient-to-r from-redshift/5 via-surface-container to-sqlserver/5 text-on-surface-variant",
                                 "border-b border-outline-variant",
                                 "sticky top-0 z-10 whitespace-nowrap"
                               )}
@@ -427,13 +450,13 @@ export function SimpleMergeEditor() {
                             className={cn(
                               "border-b border-outline-variant",
                               "transition-colors",
-                              "hover:bg-surface-container-high"
+                              "hover:bg-gradient-to-r hover:from-redshift/5 hover:via-transparent hover:to-sqlserver/5"
                             )}
                           >
                             {result.columns.map((column) => (
                               <td
                                 key={column}
-                                className="px-4 py-2 font-mono text-[11px] whitespace-nowrap"
+                                className="px-3 py-1 font-mono text-[11px] whitespace-nowrap"
                               >
                                 {formatValue(row[column])}
                               </td>
@@ -446,7 +469,7 @@ export function SimpleMergeEditor() {
 
                   {/* Pagination footer - positioned at the bottom */}
                   {totalPages > 1 && (
-                    <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-4 py-2 bg-surface-container border-t border-outline-variant">
+                    <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-1.5 bg-gradient-to-r from-redshift/5 via-surface-container to-sqlserver/5 border-t border-outline-variant">
                       <span className="text-[11px] text-on-surface-variant">
                         Showing {startIndex + 1}-{endIndex} of {totalRows} rows
                       </span>
@@ -487,16 +510,16 @@ export function SimpleMergeEditor() {
                       <thead>
                         <tr>
                           <th className={cn(
-                            "px-4 py-2 text-left font-semibold",
-                            "bg-surface-container text-on-surface-variant",
+                            "px-3 py-1.5 text-left font-semibold",
+                            "bg-gradient-to-r from-redshift/5 via-surface-container to-sqlserver/5 text-on-surface-variant",
                             "border-b border-outline-variant",
                             "sticky top-0 z-10 whitespace-nowrap"
                           )}>
                             #
                           </th>
                           <th className={cn(
-                            "px-4 py-2 text-left font-semibold",
-                            "bg-surface-container text-on-surface-variant",
+                            "px-3 py-1.5 text-left font-semibold",
+                            "bg-gradient-to-r from-redshift/5 via-surface-container to-sqlserver/5 text-on-surface-variant",
                             "border-b border-outline-variant",
                             "sticky top-0 z-10 whitespace-nowrap"
                           )}>
@@ -508,12 +531,12 @@ export function SimpleMergeEditor() {
                         {result.columns.map((column, index) => (
                           <tr
                             key={column}
-                            className="border-b border-outline-variant transition-colors hover:bg-surface-container-high"
+                            className="border-b border-outline-variant transition-colors hover:bg-gradient-to-r hover:from-redshift/5 hover:via-transparent hover:to-sqlserver/5"
                           >
-                            <td className="px-4 py-2 font-mono text-[11px] text-on-surface-variant">
+                            <td className="px-3 py-1 font-mono text-[11px] text-on-surface-variant">
                               {index + 1}
                             </td>
-                            <td className="px-4 py-2 font-mono text-[11px] whitespace-nowrap">
+                            <td className="px-3 py-1 font-mono text-[11px] whitespace-nowrap">
                               {column}
                             </td>
                           </tr>
@@ -532,12 +555,12 @@ export function SimpleMergeEditor() {
               {/* Messages Tab */}
               <TabsContent value="messages" className="flex-1 overflow-auto m-0">
                 {result?.error ? (
-                  <div className="p-4">
-                    <div className="rounded-lg bg-red-500/10 border border-red-500/30 p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-red-500/20 flex items-center justify-center">
+                  <div className="p-3">
+                    <div className="rounded-lg bg-gradient-to-r from-redshift/10 via-red-500/10 to-sqlserver/10 border border-red-500/30 p-3">
+                      <div className="flex items-start gap-2">
+                        <div className="flex-shrink-0 w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center">
                           <svg
-                            className="w-4 h-4 text-red-400"
+                            className="w-3.5 h-3.5 text-red-400"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -551,10 +574,10 @@ export function SimpleMergeEditor() {
                           </svg>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h4 className="text-sm font-semibold text-red-400 mb-2">
+                          <h4 className="text-xs font-semibold text-red-400 mb-1">
                             Merge Query Error
                           </h4>
-                          <pre className="text-xs text-red-200 font-mono whitespace-pre-wrap break-words">
+                          <pre className="text-[11px] text-red-200 font-mono whitespace-pre-wrap break-words">
                             {result.error}
                           </pre>
                         </div>
@@ -573,7 +596,7 @@ export function SimpleMergeEditor() {
       </div>
 
       {/* Status Bar */}
-      <div className="flex items-center justify-between px-4 py-1.5 bg-surface-container border-t border-outline-variant text-[11px] text-on-surface-variant">
+      <div className="flex items-center justify-between px-3 py-1 bg-gradient-to-r from-redshift/5 via-surface-container to-sqlserver/5 border-t border-outline-variant text-[11px] text-on-surface-variant">
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1">
             <Database className="w-3.5 h-3.5" />
@@ -581,17 +604,19 @@ export function SimpleMergeEditor() {
           </span>
           <span className="flex items-center gap-1">
             <TableProperties className="w-3.5 h-3.5" />
-            {Object.keys(tables).length} tables available
+            {Object.keys(tables).length} tables
           </span>
           {hasBothTables && (
-            <span className="flex items-center gap-1 text-purple-600">
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-600"></span>
-              Ready to merge: [{hasBothTables.redshiftTable}] + [{hasBothTables.sqlserverTable}]
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-redshift to-sqlserver"></span>
+              <span className="text-redshift">[{hasBothTables.redshiftTable}]</span>
+              <span>+</span>
+              <span className="text-sqlserver">[{hasBothTables.sqlserverTable}]</span>
             </span>
           )}
         </div>
         <div className="flex items-center gap-4">
-          <span>Client-side SQL Engine</span>
+          <span>Client-side SQL</span>
         </div>
       </div>
 

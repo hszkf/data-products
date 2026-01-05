@@ -2,11 +2,11 @@ import { test, expect } from '@playwright/test';
 
 // Helper to login before tests
 async function loginAsAdmin(page: any) {
-  await page.goto('/login');
+  await page.goto('/');
   await page.getByLabel('Username').fill('hasif');
   await page.getByLabel('Password').fill('admin123');
   await page.getByRole('button', { name: 'Sign In' }).click();
-  await expect(page).not.toHaveURL(/\/login/, { timeout: 10000 });
+  await expect(page).toHaveURL(/\/sql/, { timeout: 10000 });
   await page.waitForLoadState('networkidle');
 }
 
@@ -48,7 +48,7 @@ test.describe('User Management', () => {
     // Click Add User button
     await page.getByRole('button', { name: 'Add User' }).click();
     
-    // Wait for modal - it's a fixed div with the title "Create User"
+    // Modal should be visible with "Create User" heading
     await expect(page.getByRole('heading', { name: 'Create User' })).toBeVisible({ timeout: 5000 });
     
     // Modal should have form fields
@@ -74,7 +74,7 @@ test.describe('User Management', () => {
     // Submit form - click Create button
     await page.getByRole('button', { name: 'Create' }).click();
     
-    // Wait for modal to close (heading should not be visible)
+    // Wait for modal to close
     await expect(page.getByRole('heading', { name: 'Create User' })).not.toBeVisible({ timeout: 5000 });
     
     // New user should appear in list
