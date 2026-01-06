@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { prettyJSON } from 'hono/pretty-json';
 import { sqlRoutes } from './routes/sql';
+import { sqlv2Routes } from './routes/sqlv2';
 import { jobsRoutes } from './routes/jobs';
 import { storageRoutes } from './routes/storage';
 import { aiRoutes } from './routes/ai';
@@ -11,6 +12,7 @@ import { usersRoutes } from './routes/users';
 import { logsRoutes } from './routes/logs';
 import { initSqlServer, closeSqlServer, getHealthStatus as getSqlServerHealth } from './services/database/sqlserver';
 import { initRedshift, closeRedshift, getHealthStatus as getRedshiftHealth } from './services/database/redshift';
+import { initUnifiedSql, closeUnifiedSql, getUnifiedHealthStatus } from './services/database/unified-sql';
 import { storageService } from './services/storage-service';
 import { schedulerService } from './services/scheduler-service';
 import { websocketHandlers } from './utils/websocket';
@@ -129,11 +131,22 @@ app.get('/storage/health', async (c) => {
   }
 });
 
+app.get('/sqlv2/health', async (c) => {
+  try {
+    const health = await getUnifiedHealthStatus();
+    const allConnected = health.redshift.connected && health.sqlserver.connected;
+    return c.json({ status: allConnected ? 'connected' : 'partial', ...health }, allConnected ? 200 : 503);
+  } catch (error) {
+    return c.json({ status: 'disconnected', error: (error as Error).message }, 503);
+  }
+});
+
 // Routes are now public (no auth required)
 
 // Mount routes
 app.route('/sqlserver', sqlRoutes);
 app.route('/redshift', sqlRoutes); // Redshift uses same interface
+app.route('/sqlv2', sqlv2Routes); // Unified SQL v2 routes
 app.route('/jobs', jobsRoutes);
 app.route('/storage', storageRoutes);
 app.route('/ai', aiRoutes);
@@ -163,6 +176,16 @@ async function startup() {
     logger.info('Redshift connection initialized');
   } catch (error) {
     logger.warn('Redshift connection failed (will retry on first request)', {
+      metadata: { error: (error as Error).message }
+    });
+  }
+
+  // Initialize Unified SQL (v2) connections
+  try {
+    await initUnifiedSql();
+    logger.info('Unified SQL (v2) connections initialized');
+  } catch (error) {
+    logger.warn('Unified SQL initialization failed', {
       metadata: { error: (error as Error).message }
     });
   }
@@ -206,6 +229,7 @@ process.on('SIGINT', async () => {
   schedulerService.stop();
   await closeSqlServer();
   await closeRedshift();
+  await closeUnifiedSql();
   process.exit(0);
 });
 
@@ -215,6 +239,7 @@ process.on('SIGTERM', async () => {
   schedulerService.stop();
   await closeSqlServer();
   await closeRedshift();
+  await closeUnifiedSql();
   process.exit(0);
 });
 

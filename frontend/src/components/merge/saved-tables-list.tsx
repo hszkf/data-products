@@ -213,25 +213,21 @@ export function SavedTablesList() {
                   <Trash2 className="w-3 h-3" />
                 </button>
               </div>
-              <div className="mt-1 text-[10px] text-on-surface-variant flex items-center gap-2 flex-wrap">
+              <div className="mt-0.5 text-[10px] text-on-surface-variant flex items-center gap-1.5">
                 <span className={cn(
-                  "px-1.5 py-0.5 rounded",
+                  "px-1 py-0 rounded text-[9px]",
                   getSourceBgColor(data.source)
                 )}>
-                  {isUploadedFile(data.source) ? "uploaded file" : data.source}
+                  {isUploadedFile(data.source) ? "file" : data.source === "redshift" ? "rs" : "ss"}
                 </span>
-                <span>{data.rows.length} rows</span>
-                <span>{data.columns.length} cols</span>
+                <span>{data.rows.length}r</span>
+                <span>{data.columns.length}c</span>
               </div>
               {data.fileName && (
                 <div className="mt-1 text-[10px] text-outline truncate">
                   {data.fileName}
                 </div>
               )}
-              <div className="mt-1 text-[10px] text-outline truncate">
-                {data.columns.slice(0, 3).join(", ")}
-                {data.columns.length > 3 && "..."}
-              </div>
             </div>
           ))
         )}

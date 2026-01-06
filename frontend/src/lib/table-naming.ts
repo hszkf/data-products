@@ -1,41 +1,43 @@
 /**
- * Generate a 4-digit random number for table naming
+ * Extract query number from tab name (e.g., "Query 1" -> 1, "My Query" -> null)
  */
-export function generateTableSuffix(): string {
-  return Math.floor(1000 + Math.random() * 9000).toString();
+export function extractQueryNumber(tabName: string): number | null {
+  const match = tabName.match(/query\s*(\d+)/i);
+  return match ? parseInt(match[1], 10) : null;
 }
 
 /**
- * Get a session-based random suffix that persists during the session
- * but regenerates on page refresh
+ * Generate a Redshift table name based on query tab
+ * Format: rsq{queryNum} (e.g., rsq1, rsq2) - overwrites on re-run
  */
-export function getSessionTableSuffix(): string {
-  // Check if we already have a suffix for this session
-  const existing = sessionStorage.getItem('table_suffix');
-  if (existing) {
-    return existing;
+export function getRedshiftTableName(tabName?: string): string {
+  const queryNum = tabName ? extractQueryNumber(tabName) : null;
+  if (queryNum !== null) {
+    return `rsq${queryNum}`;
   }
-
-  // Generate new one and store it
-  const suffix = generateTableSuffix();
-  sessionStorage.setItem('table_suffix', suffix);
-  return suffix;
+  // Fallback for custom tab names - use sanitized tab name
+  if (tabName) {
+    const sanitized = tabName.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 10);
+    return `rs_${sanitized}`;
+  }
+  return `rs_default`;
 }
 
 /**
- * Generate a Redshift table name with rs_ prefix
+ * Generate a SQL Server table name based on query tab
+ * Format: ssq{queryNum} (e.g., ssq1, ssq2) - overwrites on re-run
  */
-export function getRedshiftTableName(): string {
-  const suffix = getSessionTableSuffix();
-  return `rs_${suffix}`;
-}
-
-/**
- * Generate a SQL Server table name with ss_ prefix
- */
-export function getSqlServerTableName(): string {
-  const suffix = getSessionTableSuffix();
-  return `ss_${suffix}`;
+export function getSqlServerTableName(tabName?: string): string {
+  const queryNum = tabName ? extractQueryNumber(tabName) : null;
+  if (queryNum !== null) {
+    return `ssq${queryNum}`;
+  }
+  // Fallback for custom tab names - use sanitized tab name
+  if (tabName) {
+    const sanitized = tabName.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 10);
+    return `ss_${sanitized}`;
+  }
+  return `ss_default`;
 }
 
 /**

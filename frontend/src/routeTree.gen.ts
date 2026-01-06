@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as StorageRouteImport } from './routes/storage'
+import { Route as Sqlv2RouteImport } from './routes/sqlv2'
 import { Route as SqlRouteImport } from './routes/sql'
 import { Route as LogsRouteImport } from './routes/logs'
 import { Route as JobsRouteImport } from './routes/jobs'
@@ -28,6 +29,11 @@ import { Route as JobsJobIdEditRouteImport } from './routes/jobs.$jobId.edit'
 const StorageRoute = StorageRouteImport.update({
   id: '/storage',
   path: '/storage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Sqlv2Route = Sqlv2RouteImport.update({
+  id: '/sqlv2',
+  path: '/sqlv2',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SqlRoute = SqlRouteImport.update({
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/jobs': typeof JobsRouteWithChildren
   '/logs': typeof LogsRoute
   '/sql': typeof SqlRoute
+  '/sqlv2': typeof Sqlv2Route
   '/storage': typeof StorageRoute
   '/admin/logs': typeof AdminLogsRoute
   '/admin/users': typeof AdminUsersRoute
@@ -124,6 +131,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/logs': typeof LogsRoute
   '/sql': typeof SqlRoute
+  '/sqlv2': typeof Sqlv2Route
   '/storage': typeof StorageRoute
   '/admin/logs': typeof AdminLogsRoute
   '/admin/users': typeof AdminUsersRoute
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/jobs': typeof JobsRouteWithChildren
   '/logs': typeof LogsRoute
   '/sql': typeof SqlRoute
+  '/sqlv2': typeof Sqlv2Route
   '/storage': typeof StorageRoute
   '/admin/logs': typeof AdminLogsRoute
   '/admin/users': typeof AdminUsersRoute
@@ -161,6 +170,7 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/logs'
     | '/sql'
+    | '/sqlv2'
     | '/storage'
     | '/admin/logs'
     | '/admin/users'
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/logs'
     | '/sql'
+    | '/sqlv2'
     | '/storage'
     | '/admin/logs'
     | '/admin/users'
@@ -193,6 +204,7 @@ export interface FileRouteTypes {
     | '/jobs'
     | '/logs'
     | '/sql'
+    | '/sqlv2'
     | '/storage'
     | '/admin/logs'
     | '/admin/users'
@@ -211,6 +223,7 @@ export interface RootRouteChildren {
   JobsRoute: typeof JobsRouteWithChildren
   LogsRoute: typeof LogsRoute
   SqlRoute: typeof SqlRoute
+  Sqlv2Route: typeof Sqlv2Route
   StorageRoute: typeof StorageRoute
 }
 
@@ -221,6 +234,13 @@ declare module '@tanstack/react-router' {
       path: '/storage'
       fullPath: '/storage'
       preLoaderRoute: typeof StorageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sqlv2': {
+      id: '/sqlv2'
+      path: '/sqlv2'
+      fullPath: '/sqlv2'
+      preLoaderRoute: typeof Sqlv2RouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sql': {
@@ -372,6 +392,7 @@ const rootRouteChildren: RootRouteChildren = {
   JobsRoute: JobsRouteWithChildren,
   LogsRoute: LogsRoute,
   SqlRoute: SqlRoute,
+  Sqlv2Route: Sqlv2Route,
   StorageRoute: StorageRoute,
 }
 export const routeTree = rootRouteImport

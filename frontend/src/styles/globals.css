@@ -59,9 +59,9 @@
     @apply bg-surface text-on-surface font-sans antialiased;
   }
 
-  /* Custom scrollbar styling */
+  /* Custom scrollbar styling - thin */
   ::-webkit-scrollbar {
-    @apply w-4 h-4;
+    @apply w-1.5 h-1.5;
   }
 
   ::-webkit-scrollbar-track {
@@ -69,11 +69,15 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-outline-variant rounded;
+    @apply bg-[#555] rounded-full;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-outline;
+    @apply bg-[#777];
+  }
+
+  ::-webkit-scrollbar-corner {
+    @apply bg-transparent;
   }
 }
 

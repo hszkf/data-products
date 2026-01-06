@@ -466,3 +466,128 @@ export async function deleteQuery(queryId: number): Promise<{ status: string; me
     throw new Error(`An unexpected error occurred while deleting query: ${String(error)}`);
   }
 }
+
+// =============================================================================
+// Unified SQL v2 API
+// =============================================================================
+
+export interface UnifiedQueryResult {
+  status: "success" | "error";
+  columns: string[];
+  rows: Record<string, unknown>[];
+  row_count: number;
+  execution_time: number;
+  source?: "redshift" | "sqlserver" | "cross";
+  message?: string;
+  error?: string;
+}
+
+export interface UnifiedHealthStatus {
+  status: "connected" | "partial" | "disconnected";
+  redshift: { connected: boolean; error?: string };
+  sqlserver: { connected: boolean; error?: string };
+}
+
+export interface UnifiedSchemaResult {
+  status: "success" | "error";
+  schemas: {
+    redshift: Record<string, string[]>;
+    sqlserver: Record<string, string[]>;
+  };
+  summary?: {
+    redshift: { schemas: number; tables: number };
+    sqlserver: { schemas: number; tables: number };
+  };
+  error?: string;
+}
+
+/**
+ * Execute a unified SQL query (supports both Redshift and SQL Server)
+ * Use rs.schema.table for Redshift, ss.schema.table for SQL Server
+ */
+export async function executeUnifiedQuery(sql: string): Promise<UnifiedQueryResult> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/sqlv2/execute`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ sql }),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Query failed with status ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorData.message || errorData.detail || errorMessage;
+      } catch {
+        errorMessage = response.statusText || errorMessage;
+      }
+      throw new Error(errorMessage);
+    }
+
+    const result = await response.json();
+    result.rows = result.rows || [];
+    result.columns = result.columns || [];
+
+    return result;
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        throw new Error(`Unable to connect to API server. Please check if the server is running.`);
+      }
+      throw error;
+    }
+    throw new Error(`An unexpected error occurred: ${String(error)}`);
+  }
+}
+
+/**
+ * Get unified health status for both databases
+ */
+export async function getUnifiedHealth(): Promise<UnifiedHealthStatus> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/sqlv2/health`);
+
+    if (!response.ok) {
+      return {
+        status: "disconnected",
+        redshift: { connected: false, error: "Failed to check health" },
+        sqlserver: { connected: false, error: "Failed to check health" },
+      };
+    }
+
+    return response.json();
+  } catch (error) {
+    return {
+      status: "disconnected",
+      redshift: { connected: false, error: String(error) },
+      sqlserver: { connected: false, error: String(error) },
+    };
+  }
+}
+
+/**
+ * Get unified schema from both databases
+ */
+export async function getUnifiedSchemas(): Promise<UnifiedSchemaResult> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/sqlv2/schema`);
+
+    if (!response.ok) {
+      return {
+        status: "error",
+        schemas: { redshift: {}, sqlserver: {} },
+        error: "Failed to fetch schemas",
+      };
+    }
+
+    return response.json();
+  } catch (error) {
+    return {
+      status: "error",
+      schemas: { redshift: {}, sqlserver: {} },
+      error: String(error),
+    };
+  }
+}

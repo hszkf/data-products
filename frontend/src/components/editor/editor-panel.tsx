@@ -17,6 +17,7 @@ import {
 import { CodeEditor } from "./code-editor";
 import { ResultsPanel } from "./results-panel";
 import { SchemaBrowser } from "./schema-browser";
+import { EditorTabs, type EditorTab } from "./editor-tabs";
 import { useToast } from "~/components/ui/toast-provider";
 import { SaveQueryDialog } from "~/components/ui/save-query-dialog";
 import { ImportQueryDialog } from "~/components/ui/import-query-dialog";
@@ -90,31 +91,198 @@ const databaseConfig = {
 };
 
 
+// Extended tab state to include results and errors
+interface TabState extends EditorTab {
+  result: QueryResult | null;
+  errorLine: number | null;
+  errorMessage: string | null;
+  cursorPosition: { line: number; column: number };
+}
+
+// Generate unique tab ID
+const generateTabId = () => `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+// LocalStorage keys
+const getStorageKey = (dbType: DatabaseType) => `sql-editor-tabs-${dbType}`;
+const getActiveTabKey = (dbType: DatabaseType) => `sql-editor-active-tab-${dbType}`;
+
+// Persistent tab data (what we save to localStorage)
+interface PersistedTab {
+  id: string;
+  name: string;
+  query: string;
+}
+
 export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
   const config = databaseConfig[type];
   const { showToast } = useToast();
   const { tables, saveTable } = useMerge();
   const panelRef = React.useRef<HTMLDivElement>(null);
 
-  const [query, setQuery] = React.useState(defaultQuery);
+  // Initialize tabs from localStorage or create default
+  const [tabs, setTabs] = React.useState<TabState[]>(() => {
+    try {
+      const saved = localStorage.getItem(getStorageKey(type));
+      if (saved) {
+        const parsed: PersistedTab[] = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((t) => ({
+            id: t.id,
+            name: t.name,
+            query: t.query,
+            isDirty: false,
+            result: null,
+            errorLine: null,
+            errorMessage: null,
+            cursorPosition: { line: 1, column: 1 },
+          }));
+        }
+      }
+    } catch {
+      // Ignore parse errors
+    }
+    // Default tab
+    return [{
+      id: generateTabId(),
+      name: "Query 1",
+      query: defaultQuery,
+      isDirty: false,
+      result: null,
+      errorLine: null,
+      errorMessage: null,
+      cursorPosition: { line: 1, column: 1 },
+    }];
+  });
+
+  // Initialize active tab from localStorage
+  const [activeTabId, setActiveTabId] = React.useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(getActiveTabKey(type));
+      if (saved && tabs.some((t) => t.id === saved)) {
+        return saved;
+      }
+    } catch {
+      // Ignore
+    }
+    return tabs[0]?.id || "";
+  });
+
+  // Persist tabs to localStorage whenever they change
+  React.useEffect(() => {
+    const toSave: PersistedTab[] = tabs.map((t) => ({
+      id: t.id,
+      name: t.name,
+      query: t.query,
+    }));
+    localStorage.setItem(getStorageKey(type), JSON.stringify(toSave));
+  }, [tabs, type]);
+
+  // Persist active tab ID
+  React.useEffect(() => {
+    localStorage.setItem(getActiveTabKey(type), activeTabId);
+  }, [activeTabId, type]);
+
+  // Get current active tab
+  const activeTab = React.useMemo(
+    () => tabs.find((t) => t.id === activeTabId) || tabs[0],
+    [tabs, activeTabId]
+  );
+
+  // Convenience getters for active tab state
+  const query = activeTab?.query || "";
+  const result = activeTab?.result || null;
+  const errorLine = activeTab?.errorLine || null;
+  const errorMessage = activeTab?.errorMessage || null;
+  const cursorPosition = activeTab?.cursorPosition || { line: 1, column: 1 };
+
   const [isLoading, setIsLoading] = React.useState(false);
   const [isConnected, setIsConnected] = React.useState<boolean | null>(null);
-  const [result, setResult] = React.useState<QueryResult | null>(null);
-  const [cursorPosition, setCursorPosition] = React.useState({
-    line: 1,
-    column: 1,
-  });
   const [isExplorerOpen, setIsExplorerOpen] = React.useState(false);
   const [explorerWidth, setExplorerWidth] = React.useState(260);
   const [isResizing, setIsResizing] = React.useState(false);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = React.useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = React.useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = React.useState(false);
-  const [errorLine, setErrorLine] = React.useState<number | null>(null);
-  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const [schemaRefreshKey, setSchemaRefreshKey] = React.useState(0);
   const [isClearingCache, setIsClearingCache] = React.useState(false);
   const explorerFileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Tab management handlers
+  const updateActiveTab = React.useCallback((updates: Partial<TabState>) => {
+    setTabs((prev) =>
+      prev.map((tab) =>
+        tab.id === activeTabId ? { ...tab, ...updates } : tab
+      )
+    );
+  }, [activeTabId]);
+
+  const setQuery = React.useCallback((newQuery: string | ((prev: string) => string)) => {
+    setTabs((prev) =>
+      prev.map((tab) => {
+        if (tab.id !== activeTabId) return tab;
+        const updatedQuery = typeof newQuery === "function" ? newQuery(tab.query) : newQuery;
+        return {
+          ...tab,
+          query: updatedQuery,
+          isDirty: updatedQuery !== defaultQuery,
+        };
+      })
+    );
+  }, [activeTabId, defaultQuery]);
+
+  const setResult = React.useCallback((newResult: QueryResult | null) => {
+    updateActiveTab({ result: newResult });
+  }, [updateActiveTab]);
+
+  const setErrorLine = React.useCallback((line: number | null) => {
+    updateActiveTab({ errorLine: line });
+  }, [updateActiveTab]);
+
+  const setErrorMessage = React.useCallback((message: string | null) => {
+    updateActiveTab({ errorMessage: message });
+  }, [updateActiveTab]);
+
+  const setCursorPosition = React.useCallback((pos: { line: number; column: number }) => {
+    updateActiveTab({ cursorPosition: pos });
+  }, [updateActiveTab]);
+
+  const handleNewTab = React.useCallback(() => {
+    const tabNumber = tabs.length + 1;
+    const newTab: TabState = {
+      id: generateTabId(),
+      name: `Query ${tabNumber}`,
+      query: "",
+      isDirty: false,
+      result: null,
+      errorLine: null,
+      errorMessage: null,
+      cursorPosition: { line: 1, column: 1 },
+    };
+    setTabs((prev) => [...prev, newTab]);
+    setActiveTabId(newTab.id);
+  }, [tabs.length]);
+
+  const handleTabClose = React.useCallback((tabId: string) => {
+    setTabs((prev) => {
+      if (prev.length <= 1) return prev; // Don't close last tab
+      const filtered = prev.filter((t) => t.id !== tabId);
+      // If closing active tab, switch to adjacent tab
+      if (tabId === activeTabId) {
+        const closedIndex = prev.findIndex((t) => t.id === tabId);
+        const newActiveIndex = Math.min(closedIndex, filtered.length - 1);
+        setActiveTabId(filtered[newActiveIndex]?.id || "");
+      }
+      return filtered;
+    });
+  }, [activeTabId]);
+
+  const handleTabRename = React.useCallback((tabId: string, newName: string) => {
+    setTabs((prev) =>
+      prev.map((tab) =>
+        tab.id === tabId ? { ...tab, name: newName } : tab
+      )
+    );
+  }, []);
 
   // Check connection status on mount only
   React.useEffect(() => {
@@ -269,8 +437,8 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
             return;
           }
 
-          // Generate table name with rs_ or ss_ prefix and 4-digit random
-          const tableName = type === 'redshift' ? getRedshiftTableName() : getSqlServerTableName();
+          // Generate table name with query number (e.g., rsq1_42, ssq2_87)
+          const tableName = type === 'redshift' ? getRedshiftTableName(activeTab?.name) : getSqlServerTableName(activeTab?.name);
 
           // Debug: log what's being saved
           console.log(`[${type}] Saving ${response.rows.length} rows to table ${tableName}`);
@@ -590,6 +758,17 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
           </Button>
         </div>
       </div>
+
+      {/* Editor Tabs */}
+      <EditorTabs
+        tabs={tabs}
+        activeTabId={activeTabId}
+        onTabSelect={setActiveTabId}
+        onTabClose={handleTabClose}
+        onNewTab={handleNewTab}
+        onTabRename={handleTabRename}
+        colorScheme={type}
+      />
 
       {/* Main Content Area - relative for absolute sidebar positioning */}
       <div className="flex-1 flex min-h-0 overflow-hidden relative">
