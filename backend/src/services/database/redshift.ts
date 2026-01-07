@@ -27,6 +27,19 @@ let client: RedshiftDataClient | null = null;
 let connected = false;
 let connectionError: string | null = null;
 
+// Export getters for shared access
+export function getRedshiftClient(): RedshiftDataClient | null {
+  return client;
+}
+
+export function isRedshiftConnected(): boolean {
+  return connected;
+}
+
+export function getRedshiftConfig() {
+  return config;
+}
+
 export async function initRedshift(): Promise<void> {
   try {
     // AWS SDK will automatically use AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN from env
@@ -65,8 +78,8 @@ export async function closeRedshift(): Promise<void> {
   }
 }
 
-// Execute a statement and wait for completion
-async function executeStatement(sql: string): Promise<string | null> {
+// Execute a statement and wait for completion (exported for unified-sql)
+export async function executeStatement(sql: string): Promise<string | null> {
   if (!client) return null;
 
   const command = new ExecuteStatementCommand({
@@ -79,8 +92,8 @@ async function executeStatement(sql: string): Promise<string | null> {
   return response.Id || null;
 }
 
-// Wait for statement to complete and check status
-async function waitForStatement(statementId: string, maxWaitMs: number = 60000): Promise<boolean> {
+// Wait for statement to complete and check status (exported for unified-sql)
+export async function waitForStatement(statementId: string, maxWaitMs: number = 60000): Promise<boolean> {
   if (!client) return false;
 
   const startTime = Date.now();
@@ -107,8 +120,8 @@ async function waitForStatement(statementId: string, maxWaitMs: number = 60000):
   throw new Error('Query timeout');
 }
 
-// Get results from completed statement
-async function getStatementResult(statementId: string): Promise<QueryResult> {
+// Get results from completed statement (exported for unified-sql)
+export async function getStatementResult(statementId: string): Promise<QueryResult> {
   if (!client) {
     throw new Error('Redshift client not initialized');
   }

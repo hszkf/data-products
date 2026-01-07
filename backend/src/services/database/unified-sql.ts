@@ -3,24 +3,24 @@
  * Supports both Redshift and SQL Server with schema prefix convention:
  * - rs.schema.table for Redshift
  * - ss.schema.table for SQL Server
+ *
+ * Uses shared Redshift connection from redshift.ts to avoid duplicate initialization
  */
 
-import {
-  RedshiftDataClient,
-  ExecuteStatementCommand,
-  GetStatementResultCommand,
-  DescribeStatementCommand,
-  ListTablesCommand,
-  StatusString,
-} from '@aws-sdk/client-redshift-data';
+import { ListTablesCommand } from '@aws-sdk/client-redshift-data';
 import sql from 'mssql';
 
-// Configuration
-const redshiftConfig = {
-  database: process.env.REDSHIFT_DATABASE || 'glue_spectrum',
-  workgroupName: process.env.REDSHIFT_WORKGROUP_NAME || 'serverless-workgroup',
-  region: process.env.AWS_REGION || 'ap-southeast-1',
-};
+// Import shared Redshift utilities from redshift.ts
+import {
+  getRedshiftClient,
+  isRedshiftConnected,
+  getRedshiftConfig,
+  executeStatement as executeRedshiftStatement,
+  waitForStatement as waitForRedshiftStatement,
+  getStatementResult as getRedshiftStatementResult,
+  executeQuery as executeRedshiftQueryDirect,
+  type QueryResult as RedshiftQueryResult,
+} from './redshift';
 
 const sqlServerConfig: sql.config = {
   user: process.env.SQLSERVER_USER || 'ssis_admin',
@@ -61,47 +61,9 @@ export interface HealthStatus {
   sqlserver: { connected: boolean; error?: string };
 }
 
-// Clients
-let redshiftClient: RedshiftDataClient | null = null;
+// SQL Server client (Redshift uses shared client from redshift.ts)
 let sqlServerPool: sql.ConnectionPool | null = null;
-let redshiftConnected = false;
 let sqlServerConnected = false;
-
-/**
- * Initialize Redshift client
- */
-async function initRedshiftClient(): Promise<boolean> {
-  const MAX_ITERATIONS = 50;
-
-  for (let i = 0; i < MAX_ITERATIONS; i++) {
-    try {
-      redshiftClient = new RedshiftDataClient({
-        region: redshiftConfig.region,
-        credentials: {
-          accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-          sessionToken: process.env.AWS_SESSION_TOKEN || '',
-        },
-      });
-
-      // Test with simple query
-      const statementId = await executeRedshiftStatement('SELECT 1');
-      if (statementId) {
-        await waitForRedshiftStatement(statementId, 30000);
-        redshiftConnected = true;
-        console.log('✅ Unified SQL: Redshift connected');
-        return true;
-      }
-    } catch (error: any) {
-      if (i === MAX_ITERATIONS - 1) {
-        console.warn(`⚠️ Unified SQL: Redshift connection failed after ${MAX_ITERATIONS} attempts:`, error.message);
-        redshiftConnected = false;
-      }
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-  }
-  return false;
-}
 
 /**
  * Initialize SQL Server pool
@@ -128,112 +90,40 @@ async function initSqlServerPool(): Promise<boolean> {
 
 /**
  * Initialize unified SQL service
+ * Note: Redshift is initialized via initRedshift() in redshift.ts (called from index.ts)
+ * This only initializes SQL Server to avoid duplicate Redshift connection
  */
 export async function initUnifiedSql(): Promise<void> {
-  const results = await Promise.allSettled([
-    initRedshiftClient(),
-    initSqlServerPool(),
-  ]);
+  // Only init SQL Server - Redshift already initialized via redshift.ts
+  await initSqlServerPool();
 
   console.log('Unified SQL initialization complete:', {
-    redshift: redshiftConnected,
+    redshift: isRedshiftConnected(),
     sqlserver: sqlServerConnected,
   });
 }
 
 /**
- * Close all connections
+ * Close SQL Server connection
+ * Note: Redshift is closed via closeRedshift() in redshift.ts (called from index.ts)
  */
 export async function closeUnifiedSql(): Promise<void> {
-  if (redshiftClient) {
-    redshiftClient.destroy();
-    redshiftClient = null;
-    redshiftConnected = false;
-  }
+  // Only close SQL Server - Redshift closed via redshift.ts
   if (sqlServerPool) {
     await sqlServerPool.close();
     sqlServerPool = null;
     sqlServerConnected = false;
   }
-  console.log('Unified SQL connections closed');
+  console.log('Unified SQL: SQL Server connection closed');
 }
 
 // ============ Redshift Operations ============
-
-async function executeRedshiftStatement(sqlQuery: string): Promise<string | null> {
-  if (!redshiftClient) return null;
-
-  const command = new ExecuteStatementCommand({
-    Database: redshiftConfig.database,
-    WorkgroupName: redshiftConfig.workgroupName,
-    Sql: sqlQuery,
-  });
-
-  const response = await redshiftClient.send(command);
-  return response.Id || null;
-}
-
-async function waitForRedshiftStatement(statementId: string, maxWaitMs: number = 60000): Promise<boolean> {
-  if (!redshiftClient) return false;
-
-  const startTime = Date.now();
-  const pollInterval = 1000;
-
-  while (Date.now() - startTime < maxWaitMs) {
-    const describeCommand = new DescribeStatementCommand({ Id: statementId });
-    const response = await redshiftClient.send(describeCommand);
-    const status = response.Status;
-
-    if (status === StatusString.FINISHED) {
-      return true;
-    } else if (status === StatusString.FAILED) {
-      throw new Error(`Query failed: ${response.Error}`);
-    } else if (status === StatusString.ABORTED) {
-      throw new Error('Query was aborted');
-    }
-
-    await new Promise(resolve => setTimeout(resolve, pollInterval));
-  }
-
-  throw new Error('Query timeout');
-}
-
-async function getRedshiftStatementResult(statementId: string): Promise<QueryResult> {
-  if (!redshiftClient) {
-    throw new Error('Redshift client not initialized');
-  }
-
-  const command = new GetStatementResultCommand({ Id: statementId });
-  const response = await redshiftClient.send(command);
-
-  const columns = response.ColumnMetadata?.map(col => col.name || '') || [];
-  const rows = response.Records?.map(record => {
-    const row: Record<string, unknown> = {};
-    record.forEach((field, index) => {
-      const columnName = columns[index] || `column_${index}`;
-      row[columnName] = field.stringValue
-        ?? field.longValue
-        ?? field.doubleValue
-        ?? field.booleanValue
-        ?? field.blobValue
-        ?? null;
-    });
-    return row;
-  }) || [];
-
-  return {
-    columns,
-    rows,
-    rowCount: response.TotalNumRows || rows.length,
-    executionTime: 0,
-    source: 'redshift',
-  };
-}
+// Uses shared functions from redshift.ts (imported at top)
 
 async function executeRedshiftQuery(query: string): Promise<QueryResult> {
   const start = Date.now();
 
-  if (!redshiftClient || !redshiftConnected) {
+  if (!isRedshiftConnected()) {
     throw new Error('Redshift not connected');
   }
 
@@ -244,13 +134,21 @@ async function executeRedshiftQuery(query: string): Promise<QueryResult> {
 
   await waitForRedshiftStatement(statementId);
   const result = await getRedshiftStatementResult(statementId);
-  result.executionTime = Date.now() - start;
 
-  return result;
+  return {
+    columns: result.columns,
+    rows: result.rows,
+    rowCount: result.rowCount,
+    executionTime: Date.now() - start,
+    source: 'redshift',
+  };
 }
 
 async function getRedshiftSchema(): Promise<Record<string, string[]>> {
-  if (!redshiftClient || !redshiftConnected) {
+  const client = getRedshiftClient();
+  const config = getRedshiftConfig();
+
+  if (!client || !isRedshiftConnected()) {
     return {};
   }
 
@@ -260,12 +158,12 @@ async function getRedshiftSchema(): Promise<Record<string, string[]>> {
 
     do {
       const listTablesCommand = new ListTablesCommand({
-        Database: redshiftConfig.database,
-        WorkgroupName: redshiftConfig.workgroupName,
+        Database: config.database,
+        WorkgroupName: config.workgroupName,
         NextToken: nextToken,
       });
 
-      const response = await redshiftClient.send(listTablesCommand);
+      const response = await client.send(listTablesCommand);
       if (response.Tables) {
         allTables.push(...response.Tables);
       }
@@ -717,19 +615,18 @@ export async function getUnifiedHealthStatus(): Promise<HealthStatus> {
     sqlserver: { connected: false },
   };
 
-  // Check Redshift
-  if (redshiftClient) {
+  // Check Redshift using shared client from redshift.ts
+  const client = getRedshiftClient();
+  if (client) {
     try {
       const statementId = await executeRedshiftStatement('SELECT 1');
       if (statementId) {
         await waitForRedshiftStatement(statementId, 10000);
         status.redshift.connected = true;
-        redshiftConnected = true;
       }
     } catch (error: any) {
       status.redshift.connected = false;
       status.redshift.error = error.message;
-      redshiftConnected = false;
     }
   }
 
