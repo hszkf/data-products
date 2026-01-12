@@ -1,7 +1,8 @@
 import * as React from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { X, FileCode, Clock, Trash2, Search, Database, FolderOpen, Code2, User } from "lucide-react";
+import { X, FileCode, Clock, Trash2, Search, FolderOpen } from "lucide-react";
 import { cn } from "~/lib/utils";
+import { Button } from "./button";
 import { getFilteredQueries, deleteLocalQuery, LocalSavedQuery } from "~/lib/saved-queries";
 import { useToast } from "./toast-provider";
 
@@ -15,33 +16,6 @@ interface ImportQueryDialogProps {
 
 const AUTHORS = ["All", "Hasif", "Nazierul", "Asyraff", "Izhar"] as const;
 
-const dbConfig = {
-  redshift: {
-    name: "Redshift",
-    color: "#ff9900",
-    gradient: "from-[#ff9900] to-[#ff6600]",
-    glow: "shadow-[0_0_40px_rgba(255,153,0,0.25)]",
-    bgGlow: "bg-[radial-gradient(ellipse_at_top,rgba(255,153,0,0.12),transparent_60%)]",
-    cardHover: "hover:border-[#ff9900]/30 hover:shadow-[0_0_30px_rgba(255,153,0,0.15)]",
-  },
-  sqlserver: {
-    name: "SQL Server",
-    color: "#0078d4",
-    gradient: "from-[#0078d4] to-[#005a9e]",
-    glow: "shadow-[0_0_40px_rgba(0,120,212,0.25)]",
-    bgGlow: "bg-[radial-gradient(ellipse_at_top,rgba(0,120,212,0.12),transparent_60%)]",
-    cardHover: "hover:border-[#0078d4]/30 hover:shadow-[0_0_30px_rgba(0,120,212,0.15)]",
-  },
-  merge: {
-    name: "Merge",
-    color: "#a855f7",
-    gradient: "from-[#ff9900] via-[#a855f7] to-[#0078d4]",
-    glow: "shadow-[0_0_40px_rgba(168,85,247,0.25)]",
-    bgGlow: "bg-[radial-gradient(ellipse_at_top,rgba(168,85,247,0.12),transparent_60%)]",
-    cardHover: "hover:border-[#a855f7]/30 hover:shadow-[0_0_30px_rgba(168,85,247,0.15)]",
-  },
-};
-
 export function ImportQueryDialog({
   open,
   onOpenChange,
@@ -54,8 +28,6 @@ export function ImportQueryDialog({
   const [isLoading, setIsLoading] = React.useState(false);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [authorFilter, setAuthorFilter] = React.useState<string>("All");
-  const [hoveredQuery, setHoveredQuery] = React.useState<string | null>(null);
-  const config = dbConfig[colorScheme];
 
   const loadSavedQueries = React.useCallback(() => {
     setIsLoading(true);
@@ -75,7 +47,6 @@ export function ImportQueryDialog({
       loadSavedQueries();
       setSearchTerm("");
       setAuthorFilter("All");
-      setHoveredQuery(null);
     }
   }, [open, loadSavedQueries]);
 
@@ -99,19 +70,12 @@ export function ImportQueryDialog({
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) {
-      return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-    } else if (diffDays === 1) {
-      return "Yesterday";
-    } else if (diffDays < 7) {
-      return `${diffDays} days ago`;
-    } else {
-      return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
-    }
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   const filteredQueries = React.useMemo(() => {
@@ -125,8 +89,7 @@ export function ImportQueryDialog({
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter((q) =>
         q.query_name.toLowerCase().includes(search) ||
-        q.description?.toLowerCase().includes(search) ||
-        q.query_text.toLowerCase().includes(search)
+        q.description?.toLowerCase().includes(search)
       );
     }
 
@@ -136,338 +99,198 @@ export function ImportQueryDialog({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm animate-in fade-in-0 duration-200" />
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 animate-in fade-in-0 duration-150" />
         <Dialog.Content
           className={cn(
             "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50",
-            "w-full max-w-2xl max-h-[85vh]",
-            "animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-4 duration-300",
+            "w-full max-w-xl max-h-[80vh] rounded-xl",
+            "bg-surface-container border border-outline-variant",
+            "shadow-elevation-3",
+            "animate-in fade-in-0 zoom-in-95 duration-150",
+            "flex flex-col",
             "focus:outline-none"
           )}
         >
-          {/* Main Card */}
-          <div
-            className={cn(
-              "relative overflow-hidden rounded-2xl flex flex-col",
-              "bg-[#0d0d12] border border-white/[0.08]",
-              config.glow,
-              "transition-shadow duration-500"
-            )}
-            style={{ maxHeight: '85vh' }}
-          >
-            {/* Ambient glow background */}
-            <div className={cn("absolute inset-0 pointer-events-none", config.bgGlow)} />
-
-            {/* Dot pattern overlay */}
-            <div
-              className="absolute inset-0 pointer-events-none opacity-[0.02]"
-              style={{
-                backgroundImage: `radial-gradient(circle at 1px 1px, white 1px, transparent 1px)`,
-                backgroundSize: '20px 20px',
-              }}
-            />
-
-            {/* Header */}
-            <div className="relative px-6 pt-6 pb-4 flex-shrink-0">
-              {/* Accent line */}
+          {/* Header */}
+          <div className="flex items-center justify-between p-5 pb-4 border-b border-outline-variant">
+            <div className="flex items-center gap-3">
               <div className={cn(
-                "absolute top-0 left-6 right-6 h-[2px] rounded-full",
-                `bg-gradient-to-r ${config.gradient}`,
-                "opacity-80"
-              )} />
-
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "w-10 h-10 rounded-xl flex items-center justify-center",
-                    "bg-gradient-to-br from-white/[0.08] to-white/[0.02]",
-                    "border border-white/[0.06]",
-                    "backdrop-blur-sm"
-                  )}>
-                    <FolderOpen className="w-5 h-5" style={{ color: config.color }} />
-                  </div>
-                  <div>
-                    <Dialog.Title className="text-[15px] font-semibold text-white tracking-tight">
-                      Import Query
-                    </Dialog.Title>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span
-                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-medium uppercase tracking-wider"
-                        style={{
-                          backgroundColor: `${config.color}20`,
-                          color: config.color
-                        }}
-                      >
-                        <Database className="w-3 h-3" />
-                        {config.name}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <Dialog.Close asChild>
-                  <button
-                    className={cn(
-                      "w-8 h-8 rounded-lg flex items-center justify-center",
-                      "text-white/40 hover:text-white hover:bg-white/[0.06]",
-                      "transition-all duration-200",
-                      "focus:outline-none focus:ring-2 focus:ring-white/20"
-                    )}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </Dialog.Close>
+                "w-9 h-9 rounded-lg flex items-center justify-center",
+                colorScheme === "redshift" && "bg-redshift/10 text-redshift",
+                colorScheme === "sqlserver" && "bg-sqlserver/10 text-sqlserver",
+                colorScheme === "merge" && "bg-purple-500/10 text-purple-400"
+              )}>
+                <FolderOpen className="w-4.5 h-4.5" />
+              </div>
+              <div>
+                <Dialog.Title className="text-sm font-semibold text-on-surface">
+                  Import Query
+                </Dialog.Title>
+                <span className={cn(
+                  "text-[11px] font-medium",
+                  colorScheme === "redshift" && "text-redshift",
+                  colorScheme === "sqlserver" && "text-sqlserver",
+                  colorScheme === "merge" && "text-purple-400"
+                )}>
+                  {queryType === "redshift" ? "Redshift" : queryType === "sqlserver" ? "SQL Server" : "Merge"}
+                </span>
               </div>
             </div>
+            <Dialog.Close asChild>
+              <button className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </Dialog.Close>
+          </div>
 
-            {/* Search & Filters */}
-            <div className="relative px-6 pb-4 flex-shrink-0 space-y-3">
-              {/* Search Input */}
-              <div className="relative group">
-                <Search
-                  className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 transition-colors group-focus-within:text-white/50"
-                />
-                <input
-                  type="text"
-                  placeholder="Search queries by name, description, or content..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+          {/* Search & Filters */}
+          <div className="px-5 py-3 space-y-3 border-b border-outline-variant">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
+              <input
+                type="text"
+                placeholder="Search queries..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className={cn(
+                  "w-full pl-9 pr-3 py-2 rounded-lg text-sm",
+                  "bg-surface text-on-surface placeholder:text-outline",
+                  "border border-outline-variant",
+                  "focus:outline-none focus:ring-2",
+                  colorScheme === "redshift" && "focus:ring-redshift/30 focus:border-redshift/50",
+                  colorScheme === "sqlserver" && "focus:ring-sqlserver/30 focus:border-sqlserver/50",
+                  colorScheme === "merge" && "focus:ring-purple-500/30 focus:border-purple-500/50"
+                )}
+              />
+            </div>
+
+            {/* Author Filter */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {AUTHORS.map((author) => (
+                <button
+                  key={author}
+                  onClick={() => setAuthorFilter(author)}
                   className={cn(
-                    "w-full pl-11 pr-4 py-3 rounded-xl text-sm",
-                    "bg-white/[0.03] text-white placeholder:text-white/25",
-                    "border border-white/[0.06]",
-                    "focus:outline-none focus:border-transparent",
-                    "transition-all duration-300"
+                    "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+                    authorFilter === author
+                      ? cn(
+                          colorScheme === "redshift" && "bg-redshift/15 text-redshift",
+                          colorScheme === "sqlserver" && "bg-sqlserver/15 text-sqlserver",
+                          colorScheme === "merge" && "bg-purple-500/15 text-purple-400"
+                        )
+                      : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
                   )}
-                  style={{
-                    boxShadow: searchTerm
-                      ? `0 0 0 2px ${config.color}30, 0 0 20px ${config.color}15`
-                      : undefined
-                  }}
-                />
-              </div>
-
-              {/* Author Filter Pills */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                <User className="w-3.5 h-3.5 text-white/30 flex-shrink-0" />
-                {AUTHORS.map((author) => (
-                  <button
-                    key={author}
-                    onClick={() => setAuthorFilter(author)}
-                    className={cn(
-                      "px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap",
-                      "transition-all duration-200",
-                      "border",
-                      authorFilter === author
-                        ? "text-white border-transparent"
-                        : "text-white/40 border-white/[0.04] hover:border-white/[0.08] hover:text-white/60"
-                    )}
-                    style={authorFilter === author ? {
-                      backgroundColor: `${config.color}20`,
-                      borderColor: `${config.color}40`,
-                    } : undefined}
-                  >
-                    {author}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Query List */}
-            <div className="relative flex-1 overflow-auto px-6 min-h-0">
-              {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-16">
-                  <div
-                    className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-                    style={{ borderColor: `${config.color}40`, borderTopColor: 'transparent' }}
-                  />
-                  <p className="mt-4 text-sm text-white/40">Loading queries...</p>
-                </div>
-              ) : filteredQueries.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16">
-                  <div className={cn(
-                    "w-16 h-16 rounded-2xl flex items-center justify-center mb-4",
-                    "bg-white/[0.03] border border-white/[0.06]"
-                  )}>
-                    <Code2 className="w-8 h-8 text-white/20" />
-                  </div>
-                  <p className="text-sm text-white/50 text-center">
-                    {searchTerm || authorFilter !== "All"
-                      ? "No queries match your filters"
-                      : "No saved queries yet"}
-                  </p>
-                  <p className="text-xs text-white/30 mt-1">
-                    {!searchTerm && authorFilter === "All" && "Save your first query to see it here"}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2 pb-4">
-                  {filteredQueries.map((query, index) => (
-                    <div
-                      key={query.id}
-                      onClick={() => handleQueryClick(query)}
-                      onMouseEnter={() => setHoveredQuery(query.id)}
-                      onMouseLeave={() => setHoveredQuery(null)}
-                      className={cn(
-                        "group relative p-4 rounded-xl cursor-pointer",
-                        "bg-white/[0.02] border border-white/[0.04]",
-                        "transition-all duration-300",
-                        config.cardHover
-                      )}
-                      style={{
-                        animationDelay: `${index * 50}ms`,
-                        animation: 'fadeIn 0.3s ease-out forwards',
-                        opacity: 0,
-                      }}
-                    >
-                      {/* Hover glow effect */}
-                      {hoveredQuery === query.id && (
-                        <div
-                          className="absolute inset-0 rounded-xl pointer-events-none opacity-30"
-                          style={{
-                            background: `radial-gradient(ellipse at center, ${config.color}10 0%, transparent 70%)`
-                          }}
-                        />
-                      )}
-
-                      <div className="relative flex items-start gap-3">
-                        {/* Icon */}
-                        <div
-                          className={cn(
-                            "w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0",
-                            "bg-white/[0.04] border border-white/[0.04]",
-                            "transition-all duration-300",
-                            "group-hover:scale-110"
-                          )}
-                          style={{
-                            borderColor: hoveredQuery === query.id ? `${config.color}30` : undefined,
-                            backgroundColor: hoveredQuery === query.id ? `${config.color}10` : undefined,
-                          }}
-                        >
-                          <FileCode className="w-4 h-4" style={{ color: config.color }} />
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="text-sm font-semibold text-white truncate group-hover:text-white">
-                              {query.query_name}
-                            </h3>
-                          </div>
-
-                          {query.description && (
-                            <p className="text-xs text-white/40 mb-2 line-clamp-1">
-                              {query.description}
-                            </p>
-                          )}
-
-                          <div className="flex items-center gap-3 text-[11px] text-white/30">
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {formatDate(query.updated_at)}
-                            </span>
-                            {query.author && (
-                              <>
-                                <span className="text-white/10">•</span>
-                                <span>{query.author}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Delete Button */}
-                        <button
-                          onClick={(e) => handleDeleteQuery(e, query.id)}
-                          className={cn(
-                            "w-8 h-8 rounded-lg flex items-center justify-center",
-                            "opacity-0 group-hover:opacity-100",
-                            "text-white/30 hover:text-red-400 hover:bg-red-500/10",
-                            "transition-all duration-200",
-                            "flex-shrink-0"
-                          )}
-                          title="Delete query"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      {/* Query Preview */}
-                      <div className={cn(
-                        "mt-3 relative rounded-lg overflow-hidden",
-                        "bg-[#08080c] border border-white/[0.03]"
-                      )}>
-                        {/* Mini line numbers aesthetic */}
-                        <div className="absolute left-0 top-0 bottom-0 w-6 bg-white/[0.02] border-r border-white/[0.03]" />
-
-                        <pre className={cn(
-                          "p-2.5 pl-8 text-[10px] font-mono leading-relaxed",
-                          "text-white/40 overflow-hidden",
-                          "line-clamp-2"
-                        )}>
-                          <code>{query.query_text}</code>
-                        </pre>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="relative px-6 py-4 border-t border-white/[0.04] bg-white/[0.01] flex-shrink-0">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-[11px] text-white/30 font-mono">
-                    {filteredQueries.length} {filteredQueries.length === 1 ? "query" : "queries"}
-                  </span>
-                  {(searchTerm || authorFilter !== "All") && (
-                    <button
-                      onClick={() => {
-                        setSearchTerm("");
-                        setAuthorFilter("All");
-                      }}
-                      className="text-[11px] text-white/40 hover:text-white/60 transition-colors"
-                    >
-                      Clear filters
-                    </button>
-                  )}
-                </div>
-                <Dialog.Close asChild>
-                  <button
-                    className={cn(
-                      "px-4 py-2 rounded-lg text-sm font-medium",
-                      "text-white/50 hover:text-white",
-                      "border border-white/[0.06] hover:border-white/[0.12]",
-                      "transition-all duration-200"
-                    )}
-                  >
-                    Close
-                  </button>
-                </Dialog.Close>
-              </div>
+                >
+                  {author}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* CSS for animations */}
-          <style>{`
-            @keyframes fadeIn {
-              from {
-                opacity: 0;
-                transform: translateY(8px);
-              }
-              to {
-                opacity: 1;
-                transform: translateY(0);
-              }
-            }
-            .scrollbar-hide::-webkit-scrollbar {
-              display: none;
-            }
-            .scrollbar-hide {
-              -ms-overflow-style: none;
-              scrollbar-width: none;
-            }
-          `}</style>
+          {/* Query List */}
+          <div className="flex-1 overflow-auto p-3">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center text-on-surface-variant">
+                  <div className={cn(
+                    "inline-block animate-spin rounded-full h-6 w-6 border-2 border-current border-t-transparent mb-3",
+                    colorScheme === "redshift" && "text-redshift",
+                    colorScheme === "sqlserver" && "text-sqlserver"
+                  )} />
+                  <p className="text-xs">Loading...</p>
+                </div>
+              </div>
+            ) : filteredQueries.length === 0 ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center text-on-surface-variant">
+                  <FileCode className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                  <p className="text-sm">
+                    {searchTerm || authorFilter !== "All"
+                      ? "No queries match your search"
+                      : "No saved queries yet"}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {filteredQueries.map((query) => (
+                  <div
+                    key={query.id}
+                    onClick={() => handleQueryClick(query)}
+                    className={cn(
+                      "group p-3 rounded-lg cursor-pointer",
+                      "bg-surface hover:bg-surface-container-high",
+                      "border border-outline-variant/50 hover:border-outline-variant",
+                      "transition-colors"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <FileCode className={cn(
+                            "w-4 h-4 flex-shrink-0",
+                            colorScheme === "redshift" && "text-redshift",
+                            colorScheme === "sqlserver" && "text-sqlserver",
+                            colorScheme === "merge" && "text-purple-400"
+                          )} />
+                          <h3 className="text-sm font-medium text-on-surface truncate">
+                            {query.query_name}
+                          </h3>
+                        </div>
+
+                        {query.description && (
+                          <p className="text-xs text-on-surface-variant mb-1.5 line-clamp-1 ml-6">
+                            {query.description}
+                          </p>
+                        )}
+
+                        <div className="flex items-center gap-2 text-[11px] text-on-surface-variant/70 ml-6">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatDate(query.updated_at)}
+                          </span>
+                          {query.author && (
+                            <>
+                              <span>·</span>
+                              <span>{query.author}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={(e) => handleDeleteQuery(e, query.id)}
+                        className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-red-400 hover:bg-red-500/10 transition-all"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Query Preview */}
+                    <div className="mt-2 ml-6 p-2 rounded bg-surface-container-high border border-outline-variant/30">
+                      <pre className="text-[10px] font-mono text-on-surface-variant/70 overflow-hidden whitespace-pre-wrap break-words line-clamp-2">
+                        {query.query_text}
+                      </pre>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between px-5 py-3 border-t border-outline-variant">
+            <span className="text-xs text-on-surface-variant">
+              {filteredQueries.length} {filteredQueries.length === 1 ? "query" : "queries"}
+            </span>
+            <Dialog.Close asChild>
+              <Button variant="default" size="sm">
+                Close
+              </Button>
+            </Dialog.Close>
+          </div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
