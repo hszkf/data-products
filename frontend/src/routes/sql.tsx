@@ -9,8 +9,7 @@ export const Route = createFileRoute('/sql')({
   component: SQLPage,
 });
 
-const defaultRedshiftQuery = `
-SELECT
+const defaultRedshiftQuery = `SELECT
     *
 FROM
     redshift_customers.public_customers
