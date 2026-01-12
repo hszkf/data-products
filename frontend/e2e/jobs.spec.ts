@@ -145,17 +145,20 @@ async function setupJobsMocks(page: Page) {
     }
   });
 
-  // Mock jobs list endpoint
-  await page.route('**/jobs', async route => {
+  // Mock jobs list endpoint - intercept ALL requests containing "8080/jobs"
+  await page.route('**/*8080/jobs', async route => {
+    const url = route.request().url();
     const method = route.request().method();
+
+    console.log(`Mock intercepted: ${method} ${url}`);
 
     if (method === 'GET') {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          success: true,
-          data: MOCK_JOBS,
+          status: 'success',
+          jobs: MOCK_JOBS,
           total: MOCK_JOBS.length
         })
       });
@@ -179,8 +182,8 @@ async function setupJobsMocks(page: Page) {
     }
   });
 
-  // Mock single job endpoint
-  await page.route('**/jobs/*', async route => {
+  // Mock single job endpoint (use regex to match backend API)
+  await page.route(/localhost:8080\/jobs\/.+/, async route => {
     const method = route.request().method();
     const url = route.request().url();
 
@@ -243,7 +246,7 @@ async function setupJobsMocks(page: Page) {
   });
 
   // Mock scheduler status
-  await page.route('**/jobs/scheduler/status', async route => {
+  await page.route(/localhost:8080\/jobs\/scheduler\/status/, async route => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -258,7 +261,7 @@ async function setupJobsMocks(page: Page) {
   });
 
   // Mock cron validation
-  await page.route('**/jobs/validate/cron', async route => {
+  await page.route(/localhost:8080\/jobs\/validate\/cron/, async route => {
     const postData = route.request().postDataJSON();
     const isValid = /^(\*|[0-9,\-\/]+)\s+(\*|[0-9,\-\/]+)\s+(\*|[0-9,\-\/]+)\s+(\*|[0-9,\-\/]+)\s+(\*|[0-9,\-\/]+)$/.test(postData.expression);
 
@@ -274,7 +277,7 @@ async function setupJobsMocks(page: Page) {
   });
 
   // Mock registry/functions list
-  await page.route('**/jobs/registry/list', async route => {
+  await page.route(/localhost:8080\/jobs\/registry\/list/, async route => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -334,29 +337,65 @@ test.describe('Jobs Page Load & Layout', () => {
   });
 
   test('should display jobs page with header', async ({ page }) => {
+    // Capture console errors for debugging
+    const errors: string[] = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error') {
+        errors.push(msg.text());
+      }
+    });
+    page.on('pageerror', error => {
+      errors.push(`Page error: ${error.message}`);
+    });
+
     await goToJobs(page);
 
-    // Check page header
-    await expect(page.getByText('Job Scheduler')).toBeVisible();
+    // Log any errors
+    if (errors.length > 0) {
+      console.log('Console errors:', errors);
+    }
+
+    // Check page header (use role for specificity)
+    await expect(page.getByRole('heading', { name: 'Job Scheduler' })).toBeVisible();
     await expect(page.getByText(/Automated workflows/i)).toBeVisible();
   });
 
   test('should show navigation bar', async ({ page }) => {
     await goToJobs(page);
 
-    await expect(page.getByRole('link', { name: /SQL/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: /Jobs/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: /Storage/i })).toBeVisible();
+    // Use exact match to avoid ambiguity
+    await expect(page.getByRole('link', { name: 'SQL', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Jobs', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Storage', exact: true })).toBeVisible();
   });
 
   test('should show stats cards', async ({ page }) => {
+    // Debug: Log network requests to /jobs
+    const jobsRequests: string[] = [];
+    page.on('request', req => {
+      if (req.url().includes('/jobs')) {
+        jobsRequests.push(`${req.method()} ${req.url()}`);
+      }
+    });
+    page.on('response', res => {
+      if (res.url().includes('/jobs')) {
+        console.log(`Response: ${res.status()} ${res.url()}`);
+      }
+    });
+
     await goToJobs(page);
 
-    // Check stats cards
+    // Log captured requests for debugging
+    console.log('Jobs API requests:', jobsRequests);
+
+    // Wait for jobs to load first (stats only show when jobs.length > 0)
+    await expect(page.getByText('Daily Sales Report')).toBeVisible({ timeout: 10000 });
+
+    // Check stats cards (use exact match to avoid ambiguity)
     await expect(page.getByText('Total Jobs')).toBeVisible();
-    await expect(page.getByText('Active')).toBeVisible();
-    await expect(page.getByText('Workflows')).toBeVisible();
-    await expect(page.getByText('Functions')).toBeVisible();
+    await expect(page.getByText('Active', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Workflows', { exact: true })).toBeVisible();
+    await expect(page.getByText('Functions', { exact: true })).toBeVisible();
   });
 
   test('should show correct stats values', async ({ page }) => {
@@ -396,14 +435,15 @@ test.describe('Job List Display', () => {
   });
 
   test('should show active/inactive status', async ({ page }) => {
-    // Check for Active and Inactive badges
-    await expect(page.getByText('Active').first()).toBeVisible();
-    await expect(page.getByText('Inactive').first()).toBeVisible();
+    // Check for Active and Inactive badges in table cells (not the filter dropdown)
+    await expect(page.getByRole('cell', { name: 'Active' }).first()).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'Inactive' }).first()).toBeVisible();
   });
 
   test('should show author names', async ({ page }) => {
-    await expect(page.getByText(/hasif/i).first()).toBeVisible();
-    await expect(page.getByText(/nazierul/i).first()).toBeVisible();
+    // Target table cells specifically to avoid matching hidden dropdown options
+    await expect(page.getByRole('cell', { name: /hasif/i }).first()).toBeVisible();
+    await expect(page.getByRole('cell', { name: /nazierul/i }).first()).toBeVisible();
   });
 
   test('should show last run status badges', async ({ page }) => {
@@ -430,9 +470,9 @@ test.describe('View Mode Toggle', () => {
 
   test('should default to table view', async ({ page }) => {
     // Table view shows table headers
-    await expect(page.getByRole('columnheader', { name: /Job/i })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: /Type/i })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: /Status/i })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Job' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Type' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Status', exact: true })).toBeVisible();
   });
 
   test('should switch to grid view', async ({ page }) => {
@@ -599,20 +639,20 @@ test.describe('Job Actions', () => {
   });
 
   test('should show delete confirmation', async ({ page }) => {
-    // Find delete button
-    const deleteButton = page.locator('button[title="Delete"]').first();
+    // Find delete button by its accessible name
+    const deleteButton = page.getByRole('button', { name: 'Delete' }).first();
 
     if (await deleteButton.isVisible()) {
       await deleteButton.click();
 
-      // Should show confirmation dialog
-      await expect(page.getByText('Delete Job')).toBeVisible();
+      // Should show confirmation dialog (use heading to avoid matching button)
+      await expect(page.getByRole('heading', { name: 'Delete Job' })).toBeVisible();
       await expect(page.getByText(/cannot be undone/i)).toBeVisible();
     }
   });
 
   test('should cancel delete action', async ({ page }) => {
-    const deleteButton = page.locator('button[title="Delete"]').first();
+    const deleteButton = page.getByRole('button', { name: 'Delete' }).first();
 
     if (await deleteButton.isVisible()) {
       await deleteButton.click();
@@ -626,7 +666,7 @@ test.describe('Job Actions', () => {
   });
 
   test('should confirm delete action', async ({ page }) => {
-    const deleteButton = page.locator('button[title="Delete"]').first();
+    const deleteButton = page.getByRole('button', { name: 'Delete' }).first();
 
     if (await deleteButton.isVisible()) {
       await deleteButton.click();
@@ -670,19 +710,22 @@ test.describe('Toolbar Actions', () => {
   });
 
   test('should toggle polling indicator', async ({ page }) => {
-    const pollingButton = page.locator('button').filter({ has: page.locator('.lucide-activity') });
+    // By default, polling is enabled and "live" indicator is visible
+    await expect(page.getByText('live')).toBeVisible({ timeout: 3000 });
 
-    if (await pollingButton.isVisible()) {
-      // Toggle on
-      await pollingButton.click();
+    // Find the polling toggle button (may be "Disable auto-refresh" or "Enable auto-refresh")
+    const disableButton = page.getByRole('button', { name: /auto-refresh/i });
+
+    if (await disableButton.isVisible()) {
+      // Toggle off - "live" should disappear
+      await disableButton.click();
       await page.waitForTimeout(300);
 
-      // Should show "live" indicator
+      // Toggle on again - "live" should reappear
+      await disableButton.click();
+      await page.waitForTimeout(300);
+
       await expect(page.getByText('live')).toBeVisible({ timeout: 3000 });
-
-      // Toggle off
-      await pollingButton.click();
-      await page.waitForTimeout(300);
     }
   });
 });
@@ -703,7 +746,8 @@ test.describe('Create New Job', () => {
   });
 
   test('should have job name input', async ({ page }) => {
-    const nameInput = page.getByLabel(/Job Name/i);
+    // Find input by placeholder since label isn't properly associated
+    const nameInput = page.getByPlaceholder('daily_data_sync');
     await expect(nameInput).toBeVisible();
 
     await nameInput.fill('Test Job');
@@ -744,15 +788,15 @@ test.describe('Create New Job', () => {
 // ============================================
 test.describe('Empty State', () => {
   test('should show empty state when no jobs', async ({ page }) => {
-    // Override mock to return empty jobs
-    await page.route('**/jobs', async route => {
+    // Override mock to return empty jobs - use correct API format
+    await page.route('**/*8080/jobs', async route => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            success: true,
-            data: [],
+            status: 'success',
+            jobs: [],
             total: 0
           })
         });
@@ -847,21 +891,22 @@ test.describe('Error Handling', () => {
 // ============================================
 test.describe('Loading States', () => {
   test('should show loading state initially', async ({ page }) => {
-    // Delay the jobs response
-    await page.route('**/jobs', async route => {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    await setupLoggedInSession(page);
+
+    // Delay the jobs response - use correct API pattern and format
+    await page.route('**/*8080/jobs', async route => {
+      await new Promise(resolve => setTimeout(resolve, 1500));
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          success: true,
-          data: MOCK_JOBS,
+          status: 'success',
+          jobs: MOCK_JOBS,
           total: MOCK_JOBS.length
         })
       });
     });
 
-    await setupLoggedInSession(page);
     await page.goto('/jobs');
 
     // Should show loading indicator

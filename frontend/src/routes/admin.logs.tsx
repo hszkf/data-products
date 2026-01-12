@@ -19,7 +19,6 @@ import {
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
-import { authFetch } from '~/lib/auth-context';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
@@ -74,7 +73,7 @@ async function fetchLogs(params: {
   if (params.date_from) searchParams.set('date_from', params.date_from);
   if (params.date_to) searchParams.set('date_to', params.date_to);
 
-  const response = await authFetch(
+  const response = await fetch(
     `${API_BASE_URL}/logs${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
   );
 
@@ -111,7 +110,7 @@ function AdminLogsPage() {
     if (filters.date_from) searchParams.set('date_from', filters.date_from);
     if (filters.date_to) searchParams.set('date_to', filters.date_to);
 
-    const response = await authFetch(
+    const response = await fetch(
       `${API_BASE_URL}/logs/export?${searchParams.toString()}`
     );
 

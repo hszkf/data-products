@@ -288,32 +288,37 @@ test.describe('SQL Page Load & Layout', () => {
     // Check page header
     await expect(page.getByText('SQL Query Studio')).toBeVisible();
 
-    // Check both database panels exist
-    await expect(page.getByText('Redshift')).toBeVisible();
-    await expect(page.getByText('SQL Server')).toBeVisible();
+    // Check both database panels exist (use heading role for specificity)
+    await expect(page.getByRole('heading', { name: 'Amazon Redshift' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'SQL Server' })).toBeVisible();
   });
 
   test('should show navigation tabs', async ({ page }) => {
     await goToSQL(page);
 
-    // Check navigation links
-    await expect(page.getByRole('link', { name: /SQL/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: /Jobs/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: /Storage/i })).toBeVisible();
+    // Check navigation links (use exact match to avoid ambiguity)
+    await expect(page.getByRole('link', { name: 'SQL', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Jobs', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Storage', exact: true })).toBeVisible();
   });
 
-  test('should show user menu when logged in', async ({ page }) => {
+  test('should show header with logo', async ({ page }) => {
     await goToSQL(page);
 
-    // Check user menu is visible
-    await expect(page.getByRole('button', { name: /Hasif/i }).first()).toBeVisible();
+    // Check header logo/title is visible (auth was removed, so checking general header)
+    await expect(page.getByText('SQL Query Studio')).toBeVisible();
   });
 
   test('should show theme toggle', async ({ page }) => {
     await goToSQL(page);
 
-    // Theme toggle button should be visible
-    await expect(page.locator('[class*="theme-toggle"]')).toBeVisible();
+    // Theme toggle button should be visible (uses Sun/Moon icons)
+    // Look for the sun or moon icon in the header area
+    const sunIcon = page.locator('svg.lucide-sun').first();
+    const moonIcon = page.locator('svg.lucide-moon').first();
+
+    // One of them should be visible depending on current theme
+    await expect(sunIcon.or(moonIcon)).toBeVisible();
   });
 });
 
@@ -332,9 +337,10 @@ test.describe('Connection Status', () => {
     // Wait for connection check to complete
     await page.waitForTimeout(1000);
 
-    // Should show connected indicator (green dot or "Connected" text)
-    const sqlServerPanel = page.locator('text=SQL Server').locator('..').locator('..');
-    await expect(sqlServerPanel.getByText(/Connected/i).first()).toBeVisible({ timeout: 5000 });
+    // When connected, SQL Server panel shows the IP address (10.200.224.42)
+    await expect(page.getByRole('heading', { name: 'SQL Server' })).toBeVisible({ timeout: 5000 });
+    // The IP address indicates connection - it's shown below the heading
+    await expect(page.getByText('10.200.224.42')).toBeVisible({ timeout: 5000 });
   });
 
   test('should show connected status for Redshift', async ({ page }) => {
@@ -342,9 +348,10 @@ test.describe('Connection Status', () => {
 
     await page.waitForTimeout(1000);
 
-    // Should show connected indicator
-    const redshiftPanel = page.locator('text=Redshift').locator('..').locator('..');
-    await expect(redshiftPanel.getByText(/Connected/i).first()).toBeVisible({ timeout: 5000 });
+    // When connected, Redshift panel shows the schema info (Schema: glue-spectrum)
+    await expect(page.getByRole('heading', { name: 'Amazon Redshift' })).toBeVisible({ timeout: 5000 });
+    // The schema info indicates connection - it's shown below the heading
+    await expect(page.getByText('Schema: glue-spectrum')).toBeVisible({ timeout: 5000 });
   });
 
   test('should show disconnected status when database offline', async ({ page }) => {
@@ -738,6 +745,10 @@ test.describe('Error Handling', () => {
   });
 
   test('should handle query timeout', async ({ page }) => {
+    await setupSQLMocks(page);
+    await setupLoggedInSession(page);
+
+    // Override the execute route AFTER setupSQLMocks to ensure our timeout mock takes precedence
     await page.route('**/sqlserver/execute', async route => {
       // Simulate timeout by delaying response significantly
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -748,16 +759,15 @@ test.describe('Error Handling', () => {
       });
     });
 
-    await setupSQLMocks(page);
-    await setupLoggedInSession(page);
     await goToSQL(page);
 
-    const runButton = page.getByRole('button', { name: /Run/i }).first();
-    await runButton.click();
+    // Get the second Run button (SQL Server is the second panel)
+    const runButtons = page.getByRole('button', { name: /Run/i });
+    await runButtons.nth(1).click();
 
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
 
-    // Should show error
+    // Should show error in the SQL Server panel's Messages tab
     await expect(page.getByText(/timeout|error|failed/i).first()).toBeVisible({ timeout: 10000 });
   });
 });

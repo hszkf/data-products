@@ -34,17 +34,10 @@ export default defineConfig({
   ],
 
   // Run local dev server before starting the tests
-  // Commented out since we'll run servers manually
-  // webServer: [
-  //   {
-  //     command: 'cd ../backend && bun run src/index.ts',
-  //     url: 'http://localhost:8080/health',
-  //     reuseExistingServer: !process.env.CI,
-  //   },
-  //   {
-  //     command: 'npm run dev',
-  //     url: 'http://localhost:3000',
-  //     reuseExistingServer: !process.env.CI,
-  //   },
-  // ],
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+    timeout: 60000,
+  },
 });

@@ -28,8 +28,7 @@ import {
   resetUserPassword,
   toggleUserActive,
 } from '~/lib/users-api';
-import type { User, UserRole, Team } from '~/lib/auth-context';
-import type { CreateUserInput, UpdateUserInput } from '~/lib/users-api';
+import type { User, UserRole, Team, CreateUserInput, UpdateUserInput } from '~/lib/users-api';
 
 // @ts-expect-error - Route will be auto-generated when dev server runs
 export const Route = createFileRoute('/admin/users')({

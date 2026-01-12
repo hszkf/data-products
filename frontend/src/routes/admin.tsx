@@ -4,7 +4,6 @@
  */
 
 import { createFileRoute, Outlet, useLocation } from '@tanstack/react-router';
-import { useAuth } from '~/lib/auth-context';
 import { AppHeader } from '~/components/app-header';
 import { Shield, Users, FileText, BarChart3 } from 'lucide-react';
 import { cn } from '~/lib/utils';
@@ -15,35 +14,7 @@ export const Route = createFileRoute('/admin')({
 });
 
 function AdminLayout() {
-  const { hasRole, isLoading } = useAuth();
   const location = useLocation();
-
-  // Show loading while checking auth
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
-  }
-
-  // Check if user is admin
-  if (!hasRole('admin')) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="text-center">
-          <Shield className="h-16 w-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
-          <p className="text-muted-foreground mb-4">
-            You need admin privileges to access this page.
-          </p>
-          <a href="/" className="text-primary hover:underline">
-            Go back to home
-          </a>
-        </div>
-      </div>
-    );
-  }
 
   const navItems = [
     { path: '/admin', label: 'Overview', icon: BarChart3, exact: true },
