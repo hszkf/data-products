@@ -709,10 +709,8 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
                       size="sm"
                       className={cn(
                         "h-7 px-1.5 rounded-md transition-all duration-150",
-                        "hover:bg-[var(--panel-tint)] hover:text-[var(--panel-primary)]",
-                        !query.trim() && "opacity-40 cursor-not-allowed"
+                        "hover:bg-[var(--panel-tint)] hover:text-[var(--panel-primary)]"
                       )}
-                      disabled={!query.trim()}
                     >
                       <Save className="w-4 h-4" />
                       <ChevronDown className="w-3 h-3 ml-0.5 opacity-60" />
@@ -722,7 +720,11 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
                 <TooltipContent>Query Options</TooltipContent>
               </Tooltip>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setIsSaveDialogOpen(true)}>
+                <DropdownMenuItem
+                  onClick={() => setIsSaveDialogOpen(true)}
+                  disabled={!query.trim()}
+                  className={!query.trim() ? "opacity-50 cursor-not-allowed" : ""}
+                >
                   <Save className="w-4 h-4 mr-2" />
                   Save Query
                 </DropdownMenuItem>
