@@ -125,7 +125,13 @@ app.get('/redshift/health', async (c) => {
 app.get('/storage/health', async (c) => {
   try {
     const health = await storageService.healthCheck();
-    return c.json({ status: health.connected ? 'connected' : 'disconnected', ...health }, health.connected ? 200 : 503);
+    return c.json({
+      status: health.connected ? 'connected' : 'disconnected',
+      bucket: health.bucket,
+      prefix: health.prefix,
+      region: process.env.AWS_REGION || 'ap-southeast-1',
+      error: health.connected ? null : 'Unable to connect to S3',
+    }, health.connected ? 200 : 503);
   } catch (error) {
     return c.json({ status: 'disconnected', connected: false, error: (error as Error).message }, 503);
   }
