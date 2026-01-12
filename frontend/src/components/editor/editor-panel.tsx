@@ -39,7 +39,7 @@ const defaultQueries: Record<DatabaseType, string> = {
 FROM
     redshift_customers.public_customers
 LIMIT 10`,
-  sqlserver: "",
+  sqlserver: `SELECT * FROM [Staging].[dbo].[Def_CCRIS_Entity_Type_Code]`,
 };
 
 interface EditorPanelProps {
