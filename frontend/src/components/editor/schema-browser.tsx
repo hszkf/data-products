@@ -16,6 +16,61 @@ import { useMerge } from "~/components/merge";
 import { useToast } from "~/components/ui/toast-provider";
 import type { DatabaseType } from "./editor-panel";
 
+// Shared cache key with /sqlv2
+const SCHEMA_CACHE_KEY = 'sql-schema-cache';
+const SCHEMA_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+interface SchemaCache {
+  data: {
+    status: string;
+    schemas: {
+      redshift: Record<string, string[]>;
+      sqlserver: Record<string, string[]>;
+    };
+  };
+  timestamp: number;
+}
+
+function getSchemaFromCache(dbType: DatabaseType): Record<string, string[]> | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cached = localStorage.getItem(SCHEMA_CACHE_KEY);
+    if (!cached) return null;
+    const { data, timestamp }: SchemaCache = JSON.parse(cached);
+    if (Date.now() - timestamp > SCHEMA_CACHE_TTL) return null;
+    return data.schemas[dbType] || null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSchemaToCache(dbType: DatabaseType, schemas: Record<string, string[]>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    let cache: SchemaCache;
+    const existing = localStorage.getItem(SCHEMA_CACHE_KEY);
+    if (existing) {
+      cache = JSON.parse(existing);
+      cache.data.schemas[dbType] = schemas;
+      cache.timestamp = Date.now();
+    } else {
+      cache = {
+        data: {
+          status: 'success',
+          schemas: {
+            redshift: dbType === 'redshift' ? schemas : {},
+            sqlserver: dbType === 'sqlserver' ? schemas : {},
+          },
+        },
+        timestamp: Date.now(),
+      };
+    }
+    localStorage.setItem(SCHEMA_CACHE_KEY, JSON.stringify(cache));
+  } catch (e) {
+    console.error('[Schema Cache] Error saving:', e);
+  }
+}
+
 interface SchemaBrowserProps {
   type: DatabaseType;
   onTableSelect?: (tableName: string, database: string) => void;
@@ -37,10 +92,27 @@ export function SchemaBrowser({ type, onTableSelect, refreshKey = 0 }: SchemaBro
   const fetchSchemas = React.useCallback(async (refresh: boolean = false) => {
     setIsLoading(true);
     setError(null);
+
+    // Try to load from cache first (unless refresh is requested)
+    if (!refresh) {
+      const cached = getSchemaFromCache(type);
+      if (cached && Object.keys(cached).length > 0) {
+        setSchemas(cached);
+        setExpandedDbs(new Set());
+        setIsLoading(false);
+        return;
+      }
+    }
+
     try {
       const result = await getSchemas(type, refresh);
-      setSchemas(result.schemas || {});
+      const fetchedSchemas = result.schemas || {};
+      setSchemas(fetchedSchemas);
       setExpandedDbs(new Set());
+      // Save to shared cache
+      if (Object.keys(fetchedSchemas).length > 0) {
+        saveSchemaToCache(type, fetchedSchemas);
+      }
     } catch (err) {
       setSchemas({});
     } finally {

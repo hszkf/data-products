@@ -38,7 +38,7 @@ export const Route = createFileRoute('/sqlv2')({
 });
 
 const ROWS_PER_PAGE = 100;
-const SCHEMA_CACHE_KEY = 'sqlv2-schema-cache';
+const SCHEMA_CACHE_KEY = 'sql-schema-cache'; // Shared cache key with /sql
 const SCHEMA_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 const TABS_STORAGE_KEY = 'sqlv2-tabs';
 

@@ -91,7 +91,7 @@ test.describe('SQLv2 Page - Unified SQL Editor', () => {
     await setupLoggedInSession(page);
     // Clear any cached schemas
     await page.evaluate(() => {
-      localStorage.removeItem('sqlv2-schema-cache');
+      localStorage.removeItem('sql-schema-cache');
       localStorage.removeItem('sqlv2-tabs');
     });
     await page.goto('/sqlv2');
@@ -407,9 +407,9 @@ test.describe('SQLv2 Page - Unified SQL Editor', () => {
       // Wait for schema to load
       await page.waitForTimeout(1000);
 
-      // Check localStorage for cache
+      // Check localStorage for cache (shared with /sql)
       const cache = await page.evaluate(() => {
-        return localStorage.getItem('sqlv2-schema-cache');
+        return localStorage.getItem('sql-schema-cache');
       });
 
       expect(cache).not.toBeNull();
