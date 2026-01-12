@@ -9,11 +9,14 @@
     "dev": "bun run --hot src/index.ts",
     "start": "bun run src/index.ts",
     "build": "bun build src/index.ts --outdir=dist --target=bun",
-    "test": "bun test"
+    "test": "bun test",
+    "lint": "oxlint -c oxlint.json src/",
+    "lint:fix": "oxlint -c oxlint.json src/ --fix"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/uuid": "^10.0.0"
+    "@types/uuid": "^10.0.0",
+    "oxlint": "^1.38.0"
   },
   "peerDependencies": {
     "typescript": "^5"
