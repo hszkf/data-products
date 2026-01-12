@@ -10,6 +10,8 @@
     "test:watch": "vitest",
     "lint": "oxlint -c oxlint.json src/",
     "lint:fix": "oxlint -c oxlint.json src/ --fix",
+    "format": "oxfmt src/",
+    "format:check": "oxfmt --check src/",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed"
@@ -55,6 +57,7 @@
     "@vitejs/plugin-react": "^5.1.2",
     "autoprefixer": "^10.4.20",
     "jsdom": "^27.4.0",
+    "oxfmt": "^0.23.0",
     "oxlint": "^1.38.0",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",

@@ -11,11 +11,14 @@
     "build": "bun build src/index.ts --outdir=dist --target=bun",
     "test": "bun test",
     "lint": "oxlint -c oxlint.json src/",
-    "lint:fix": "oxlint -c oxlint.json src/ --fix"
+    "lint:fix": "oxlint -c oxlint.json src/ --fix",
+    "format": "oxfmt src/",
+    "format:check": "oxfmt --check src/"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/uuid": "^10.0.0",
+    "oxfmt": "^0.23.0",
     "oxlint": "^1.38.0"
   },
   "peerDependencies": {

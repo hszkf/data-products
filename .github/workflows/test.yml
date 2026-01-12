@@ -29,6 +29,9 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      - name: Format check
+        run: bun run format:check
+
       - name: Run tests
         run: bun test
 
@@ -53,6 +56,9 @@ jobs:
 
       - name: Lint
         run: bun run lint
+
+      - name: Format check
+        run: bun run format:check
 
       - name: Run tests
         run: bun run test
