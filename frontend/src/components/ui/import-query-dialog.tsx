@@ -269,8 +269,8 @@ export function ImportQueryDialog({
                     </div>
 
                     {/* Query Preview */}
-                    <div className="mt-2 ml-6 p-2 rounded bg-surface-container-high border border-outline-variant/30">
-                      <pre className="text-[10px] font-mono text-on-surface-variant/70 overflow-hidden whitespace-pre-wrap break-words line-clamp-2">
+                    <div className="mt-2 ml-6 p-2.5 rounded-lg bg-surface-container-high border border-outline-variant/30">
+                      <pre className="text-[11px] font-mono text-on-surface-variant/80 overflow-hidden whitespace-pre-wrap break-words line-clamp-3">
                         {query.query_text}
                       </pre>
                     </div>

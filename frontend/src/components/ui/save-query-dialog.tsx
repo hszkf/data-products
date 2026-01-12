@@ -201,9 +201,9 @@ export function SaveQueryDialog({
               <label className="block text-xs font-medium text-on-surface-variant mb-1.5">
                 Preview
               </label>
-              <div className="rounded-lg bg-surface-container-high border border-outline-variant p-3 max-h-20 overflow-auto">
-                <pre className="text-[11px] font-mono text-on-surface-variant whitespace-pre-wrap break-words">
-                  {queryText.length > 400 ? `${queryText.slice(0, 400)}...` : queryText}
+              <div className="rounded-lg bg-surface-container-high border border-outline-variant p-3 max-h-32 overflow-auto">
+                <pre className="text-xs font-mono text-on-surface-variant whitespace-pre-wrap break-words">
+                  {queryText.length > 600 ? `${queryText.slice(0, 600)}...` : queryText}
                 </pre>
               </div>
             </div>
