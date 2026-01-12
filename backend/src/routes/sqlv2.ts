@@ -10,10 +10,6 @@ import {
   getUnifiedSchema,
   getUnifiedHealthStatus,
 } from '../services/database/unified-sql';
-import { getUser } from '../middleware/auth';
-import { checkQuery } from '../middleware/query-guard';
-import { queryLogger } from '../services/query-logger';
-import { QueryBlockedError } from '../utils/errors';
 import { logger } from '../utils/logger';
 
 export const sqlv2Routes = new Hono();
@@ -40,62 +36,13 @@ const ExecuteQuerySchema = z.object({
  */
 sqlv2Routes.post('/execute', async (c) => {
   const startTime = Date.now();
-  const user = getUser(c);
 
   try {
     const body = await c.req.json();
     const validated = ExecuteQuerySchema.parse(body);
     const query = validated.query || validated.sql!;
 
-    // Check if query is allowed for this user's role
-    if (user) {
-      const { allowed, blockedCommand } = checkQuery(query, user.role);
-
-      if (!allowed) {
-        await queryLogger.log({
-          userId: user.userId,
-          username: user.username,
-          role: user.role,
-          database: 'unified',
-          query,
-          executionTimeMs: 0,
-          rowCount: 0,
-          status: 'blocked',
-          blockedReason: `${blockedCommand} commands are not allowed for ${user.role} role`,
-          clientIp: c.req.header('x-forwarded-for') || c.req.header('x-real-ip'),
-        });
-
-        logger.warn('Query blocked', {
-          userId: user.userId,
-          metadata: {
-            username: user.username,
-            role: user.role,
-            blockedCommand,
-            database: 'unified',
-            queryPreview: query.slice(0, 100),
-          },
-        });
-
-        throw new QueryBlockedError(blockedCommand, user.role);
-      }
-    }
-
     const result = await executeUnifiedQuery(query);
-
-    // Log successful query
-    if (user) {
-      await queryLogger.log({
-        userId: user.userId,
-        username: user.username,
-        role: user.role,
-        database: result.source || 'unified',
-        query,
-        executionTimeMs: Date.now() - startTime,
-        rowCount: result.rowCount,
-        status: 'success',
-        clientIp: c.req.header('x-forwarded-for') || c.req.header('x-real-ip'),
-      });
-    }
 
     return c.json({
       status: 'success',
@@ -107,29 +54,6 @@ sqlv2Routes.post('/execute', async (c) => {
       message: `Query executed successfully (${result.rowCount} rows from ${result.source})`,
     });
   } catch (error: any) {
-    // Log failed query
-    if (user && !(error instanceof QueryBlockedError)) {
-      const body = await c.req.json().catch(() => ({}));
-      const query = body.query || body.sql || '';
-
-      await queryLogger.log({
-        userId: user.userId,
-        username: user.username,
-        role: user.role,
-        database: 'unified',
-        query,
-        executionTimeMs: Date.now() - startTime,
-        rowCount: 0,
-        status: 'error',
-        errorMessage: error.message,
-        clientIp: c.req.header('x-forwarded-for') || c.req.header('x-real-ip'),
-      });
-    }
-
-    if (error instanceof QueryBlockedError) {
-      throw error;
-    }
-
     logger.error('Unified query execution error', error);
     return c.json(
       {

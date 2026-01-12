@@ -1,19 +1,14 @@
 /**
  * Query Logs Routes
- * View and search query execution logs (admin only)
+ * View and search query execution logs
  */
 
 import { Hono } from 'hono';
-import { getUser } from '../middleware/auth';
-import { requireAdmin } from '../middleware/require-role';
 import { storageService } from '../services/storage-service';
 import { ValidationError } from '../utils/errors';
 import { logger } from '../utils/logger';
 
 export const logsRoutes = new Hono();
-
-// All logs routes require admin role
-logsRoutes.use('/*', requireAdmin);
 
 // Logs are stored in S3 under this prefix
 const LOGS_PREFIX = 'query-logs/';
@@ -50,15 +45,15 @@ logsRoutes.get('/', async (c) => {
   try {
     // List log files from S3
     const files = await storageService.listFiles(LOGS_PREFIX);
-    
+
     // Filter by date range if specified
     let logFiles = files.filter(f => f.key.endsWith('.json'));
-    
+
     if (dateFrom) {
       const fromDate = new Date(dateFrom);
       logFiles = logFiles.filter(f => new Date(f.lastModified) >= fromDate);
     }
-    
+
     if (dateTo) {
       const toDate = new Date(dateTo);
       toDate.setHours(23, 59, 59, 999);
@@ -70,7 +65,7 @@ logsRoutes.get('/', async (c) => {
 
     // Load and parse log entries
     const allLogs: QueryLog[] = [];
-    
+
     for (const file of logFiles.slice(0, 100)) { // Limit to 100 most recent files
       try {
         const content = await storageService.downloadFile(file.key);
@@ -93,7 +88,7 @@ logsRoutes.get('/', async (c) => {
     let filteredLogs = allLogs;
 
     if (username) {
-      filteredLogs = filteredLogs.filter(l => 
+      filteredLogs = filteredLogs.filter(l =>
         l.username.toLowerCase().includes(username.toLowerCase())
       );
     }
@@ -107,7 +102,7 @@ logsRoutes.get('/', async (c) => {
     }
 
     // Sort by timestamp descending
-    filteredLogs.sort((a, b) => 
+    filteredLogs.sort((a, b) =>
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
 
@@ -194,7 +189,7 @@ logsRoutes.get('/stats', async (c) => {
 
           for (const log of logsArray as QueryLog[]) {
             stats.totalQueries++;
-            
+
             if (log.status === 'success') stats.successCount++;
             else if (log.status === 'error') stats.errorCount++;
             else if (log.status === 'blocked') stats.blockedCount++;
@@ -221,8 +216,8 @@ logsRoutes.get('/stats', async (c) => {
       }
     }
 
-    stats.avgExecutionTimeMs = stats.totalQueries > 0 
-      ? Math.round(totalExecutionTime / stats.totalQueries) 
+    stats.avgExecutionTimeMs = stats.totalQueries > 0
+      ? Math.round(totalExecutionTime / stats.totalQueries)
       : 0;
 
     return c.json({
@@ -298,13 +293,11 @@ logsRoutes.get('/export', async (c) => {
     }
 
     // Sort by timestamp descending
-    allLogs.sort((a, b) => 
+    allLogs.sort((a, b) =>
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
 
-    const currentUser = getUser(c);
     logger.info('Query logs exported', {
-      userId: currentUser?.userId,
       metadata: { format, count: allLogs.length },
     });
 
@@ -391,9 +384,7 @@ logsRoutes.delete('/', async (c) => {
       }
     }
 
-    const currentUser = getUser(c);
     logger.info('Old query logs deleted', {
-      userId: currentUser?.userId,
       metadata: { daysOld, deletedCount },
     });
 

@@ -1,21 +1,16 @@
 /**
  * Users Routes
- * User management CRUD operations (admin only)
+ * User management CRUD operations
  */
 
 import { Hono } from 'hono';
-import { authService } from '../services/auth-service';
-import { getUser } from '../middleware/auth';
-import { requireAdmin } from '../middleware/require-role';
-import { ValidationError, NotFoundError, AuthorizationError } from '../utils/errors';
+import { userService } from '../services/user-service';
+import { ValidationError, NotFoundError } from '../utils/errors';
 import type { UserRole, Team } from '../models/user';
 import { isValidRole, isValidTeam } from '../models/user';
 import { logger } from '../utils/logger';
 
 export const usersRoutes = new Hono();
-
-// All user management routes require admin role
-usersRoutes.use('/*', requireAdmin);
 
 /**
  * GET /users
@@ -37,7 +32,7 @@ usersRoutes.get('/', async (c) => {
 
   const isActive = isActiveStr === undefined ? undefined : isActiveStr === 'true';
 
-  const users = await authService.listUsers({ role, team, isActive });
+  const users = await userService.listUsers({ role, team, isActive });
 
   return c.json({
     success: true,
@@ -57,7 +52,7 @@ usersRoutes.get('/:id', async (c) => {
     throw new ValidationError('Invalid user ID');
   }
 
-  const user = await authService.getUserById(id);
+  const user = await userService.getUserById(id);
 
   if (!user) {
     throw new NotFoundError('User');
@@ -94,7 +89,7 @@ usersRoutes.post('/', async (c) => {
     throw new ValidationError('Invalid team');
   }
 
-  const user = await authService.createUser({
+  const user = await userService.createUser({
     username: username.trim(),
     password,
     role,
@@ -102,9 +97,7 @@ usersRoutes.post('/', async (c) => {
     display_name: display_name?.trim(),
   });
 
-  const currentUser = getUser(c);
-  logger.info('User created by admin', {
-    userId: currentUser?.userId,
+  logger.info('User created', {
     metadata: { createdUserId: user.id, createdUsername: user.username },
   });
 
@@ -137,21 +130,14 @@ usersRoutes.put('/:id', async (c) => {
     throw new ValidationError('Invalid team');
   }
 
-  // Prevent admin from disabling themselves
-  const currentUser = getUser(c);
-  if (currentUser?.userId === id && is_active === false) {
-    throw new AuthorizationError('Cannot disable your own account');
-  }
-
-  const user = await authService.updateUser(id, {
+  const user = await userService.updateUser(id, {
     role,
     team,
     display_name: display_name?.trim(),
     is_active,
   });
 
-  logger.info('User updated by admin', {
-    userId: currentUser?.userId,
+  logger.info('User updated', {
     metadata: { updatedUserId: id, changes: body },
   });
 
@@ -172,16 +158,9 @@ usersRoutes.delete('/:id', async (c) => {
     throw new ValidationError('Invalid user ID');
   }
 
-  // Prevent admin from deleting themselves
-  const currentUser = getUser(c);
-  if (currentUser?.userId === id) {
-    throw new AuthorizationError('Cannot delete your own account');
-  }
+  await userService.deleteUser(id);
 
-  await authService.deleteUser(id);
-
-  logger.info('User deleted by admin', {
-    userId: currentUser?.userId,
+  logger.info('User deleted', {
     metadata: { deletedUserId: id },
   });
 
@@ -193,7 +172,7 @@ usersRoutes.delete('/:id', async (c) => {
 
 /**
  * POST /users/:id/reset-password
- * Reset user password (admin only)
+ * Reset user password
  */
 usersRoutes.post('/:id/reset-password', async (c) => {
   const id = parseInt(c.req.param('id'));
@@ -209,11 +188,9 @@ usersRoutes.post('/:id/reset-password', async (c) => {
     throw new ValidationError('New password is required');
   }
 
-  await authService.resetPassword(id, newPassword);
+  await userService.resetPassword(id, newPassword);
 
-  const currentUser = getUser(c);
-  logger.info('Password reset by admin', {
-    userId: currentUser?.userId,
+  logger.info('Password reset', {
     metadata: { resetUserId: id },
   });
 
@@ -234,25 +211,18 @@ usersRoutes.post('/:id/toggle-active', async (c) => {
     throw new ValidationError('Invalid user ID');
   }
 
-  // Prevent admin from disabling themselves
-  const currentUser = getUser(c);
-  if (currentUser?.userId === id) {
-    throw new AuthorizationError('Cannot toggle your own account status');
-  }
-
   // Get current status
-  const user = await authService.getUserById(id);
+  const user = await userService.getUserById(id);
   if (!user) {
     throw new NotFoundError('User');
   }
 
   // Toggle status
-  const updatedUser = await authService.updateUser(id, {
+  const updatedUser = await userService.updateUser(id, {
     is_active: !user.is_active,
   });
 
-  logger.info('User status toggled by admin', {
-    userId: currentUser?.userId,
+  logger.info('User status toggled', {
     metadata: { toggledUserId: id, newStatus: updatedUser.is_active },
   });
 

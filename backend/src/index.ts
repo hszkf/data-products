@@ -7,7 +7,6 @@ import { jobsRoutes } from './routes/jobs';
 import { storageRoutes } from './routes/storage';
 import { aiRoutes } from './routes/ai';
 import { ragRoutes } from './routes/rag';
-import { authRoutes } from './routes/auth';
 import { usersRoutes } from './routes/users';
 import { logsRoutes } from './routes/logs';
 import { initSqlServer, closeSqlServer, getHealthStatus as getSqlServerHealth } from './services/database/sqlserver';
@@ -99,9 +98,6 @@ app.use('*', requestLoggerMiddleware);
 app.get('/health', (c) => {
   return c.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
-
-// Auth routes (no auth required for login)
-app.route('/auth', authRoutes);
 
 // Health endpoints for each service (no auth required)
 app.get('/sqlserver/health', async (c) => {

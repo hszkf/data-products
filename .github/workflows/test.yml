@@ -29,8 +29,8 @@ jobs:
       - name: Run tests
         run: bun test
 
-  frontend-build:
-    name: Frontend Build
+  frontend-tests:
+    name: Frontend Tests
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -47,6 +47,9 @@ jobs:
 
       - name: Install dependencies
         run: bun install
+
+      - name: Run tests
+        run: bun run test
 
       - name: Build
         run: bun run build
