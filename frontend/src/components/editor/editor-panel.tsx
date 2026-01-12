@@ -32,6 +32,16 @@ import { getRedshiftTableName, getSqlServerTableName } from "~/lib/table-naming"
 
 export type DatabaseType = "redshift" | "sqlserver";
 
+// Default queries for each database type
+const defaultQueries: Record<DatabaseType, string> = {
+  redshift: `SELECT
+    *
+FROM
+    redshift_customers.public_customers
+LIMIT 10`,
+  sqlserver: "",
+};
+
 interface EditorPanelProps {
   type: DatabaseType;
   defaultQuery?: string;
@@ -120,6 +130,9 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
   const { tables, saveTable } = useMerge();
   const panelRef = React.useRef<HTMLDivElement>(null);
 
+  // Get the effective default query (prop or built-in default)
+  const effectiveDefaultQuery = defaultQuery || defaultQueries[type];
+
   // Initialize tabs from localStorage or create default
   const [tabs, setTabs] = React.useState<TabState[]>(() => {
     try {
@@ -130,7 +143,8 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
           return parsed.map((t) => ({
             id: t.id,
             name: t.name,
-            query: t.query,
+            // Use default query if saved query is empty
+            query: t.query || defaultQueries[type],
             isDirty: false,
             result: null,
             errorLine: null,
@@ -146,7 +160,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
     return [{
       id: generateTabId(),
       name: "Query 1",
-      query: defaultQuery,
+      query: effectiveDefaultQuery,
       isDirty: false,
       result: null,
       errorLine: null,
@@ -225,11 +239,11 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
         return {
           ...tab,
           query: updatedQuery,
-          isDirty: updatedQuery !== defaultQuery,
+          isDirty: updatedQuery !== effectiveDefaultQuery,
         };
       })
     );
-  }, [activeTabId, defaultQuery]);
+  }, [activeTabId, effectiveDefaultQuery]);
 
   const setResult = React.useCallback((newResult: QueryResult | null) => {
     updateActiveTab({ result: newResult });
@@ -252,7 +266,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
     const newTab: TabState = {
       id: generateTabId(),
       name: `Query ${tabNumber}`,
-      query: "",
+      query: defaultQueries[type],
       isDirty: false,
       result: null,
       errorLine: null,
@@ -261,7 +275,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
     };
     setTabs((prev) => [...prev, newTab]);
     setActiveTabId(newTab.id);
-  }, [tabs.length]);
+  }, [tabs.length, type]);
 
   const handleTabClose = React.useCallback((tabId: string) => {
     setTabs((prev) => {
