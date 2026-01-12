@@ -28,6 +28,10 @@ export function ImportQueryDialog({
   const [isLoading, setIsLoading] = React.useState(false);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [authorFilter, setAuthorFilter] = React.useState<string>("All");
+  const [deleteConfirm, setDeleteConfirm] = React.useState<{ open: boolean; query: LocalSavedQuery | null }>({
+    open: false,
+    query: null,
+  });
 
   const loadSavedQueries = React.useCallback(() => {
     setIsLoading(true);
@@ -55,17 +59,27 @@ export function ImportQueryDialog({
     onOpenChange(false);
   };
 
-  const handleDeleteQuery = (e: React.MouseEvent, queryId: string) => {
+  const handleDeleteClick = (e: React.MouseEvent, query: LocalSavedQuery) => {
     e.stopPropagation();
-    if (!confirm("Are you sure you want to delete this query?")) return;
+    setDeleteConfirm({ open: true, query });
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deleteConfirm.query) return;
 
     try {
-      deleteLocalQuery(queryId);
+      deleteLocalQuery(deleteConfirm.query.id);
       showToast("Query deleted", "success");
       loadSavedQueries();
     } catch (error) {
       showToast("Failed to delete query", "error");
+    } finally {
+      setDeleteConfirm({ open: false, query: null });
     }
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteConfirm({ open: false, query: null });
   };
 
   const formatDate = (dateString: string) => {
@@ -126,6 +140,9 @@ export function ImportQueryDialog({
                 <Dialog.Title className="text-sm font-semibold text-on-surface">
                   Import Query
                 </Dialog.Title>
+                <Dialog.Description className="sr-only">
+                  Select a saved query to import
+                </Dialog.Description>
                 <span className={cn(
                   "text-[11px] font-medium",
                   colorScheme === "redshift" && "text-redshift",
@@ -260,9 +277,10 @@ export function ImportQueryDialog({
                       </div>
 
                       <button
-                        onClick={(e) => handleDeleteQuery(e, query.id)}
+                        onClick={(e) => handleDeleteClick(e, query)}
                         className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-red-400 hover:bg-red-500/10 transition-all"
                         title="Delete"
+                        data-testid="delete-query-button"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -293,6 +311,75 @@ export function ImportQueryDialog({
           </div>
         </Dialog.Content>
       </Dialog.Portal>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog.Root open={deleteConfirm.open} onOpenChange={(open) => !open && handleCancelDelete()}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-[60] bg-black/50 animate-in fade-in-0 duration-150" />
+          <Dialog.Content
+            className={cn(
+              "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[60]",
+              "w-full max-w-sm rounded-xl",
+              "bg-surface-container border border-outline-variant",
+              "shadow-elevation-3",
+              "animate-in fade-in-0 zoom-in-95 duration-150",
+              "focus:outline-none"
+            )}
+            data-testid="delete-confirmation-modal"
+          >
+            <div className="p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
+                  <Trash2 className="w-5 h-5 text-red-400" />
+                </div>
+                <div>
+                  <Dialog.Title className="text-sm font-semibold text-on-surface">
+                    Delete Query
+                  </Dialog.Title>
+                  <Dialog.Description className="text-xs text-on-surface-variant">
+                    This action cannot be undone
+                  </Dialog.Description>
+                </div>
+              </div>
+
+              {deleteConfirm.query && (
+                <div className="mb-4 p-3 rounded-lg bg-surface border border-outline-variant/50">
+                  <p className="text-sm font-medium text-on-surface truncate">
+                    {deleteConfirm.query.query_name}
+                  </p>
+                  {deleteConfirm.query.description && (
+                    <p className="text-xs text-on-surface-variant mt-1 line-clamp-1">
+                      {deleteConfirm.query.description}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <p className="text-sm text-on-surface-variant mb-5">
+                Are you sure you want to delete this saved query?
+              </p>
+
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleCancelDelete}
+                  data-testid="cancel-delete-button"
+                >
+                  Cancel
+                </Button>
+                <button
+                  onClick={handleConfirmDelete}
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+                  data-testid="confirm-delete-button"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </Dialog.Root>
   );
 }
