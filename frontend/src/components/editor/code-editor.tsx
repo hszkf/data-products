@@ -137,7 +137,7 @@ export function CodeEditor({
             <div
               className="absolute inset-0 pointer-events-none overflow-hidden"
               style={{
-                top: `${(errorLine - 1) * 20}px`,
+                top: `calc(12px + ${(errorLine - 1) * 20}px)`,
                 height: '20px',
               }}
             >

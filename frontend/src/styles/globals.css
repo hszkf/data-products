@@ -84,10 +84,10 @@
 @layer components {
   /* Editor textarea styling */
   .code-editor {
-    @apply absolute inset-0 py-4 pr-4 pl-4 bg-transparent border-none outline-none resize-none;
-    @apply font-mono text-[13px] text-transparent;
+    @apply absolute inset-0 py-3 pr-4 pl-3 bg-transparent border-none outline-none resize-none;
+    @apply font-mono text-[12px] text-transparent;
     @apply overflow-auto whitespace-pre;
-    line-height: 22px;
+    line-height: 20px;
     tab-size: 2;
     z-index: 10;
     pointer-events: auto !important;
@@ -104,10 +104,10 @@
 
   /* Syntax highlighting background layer */
   .code-highlight {
-    @apply absolute inset-0 py-4 pr-4 pl-4 bg-transparent border-none outline-none;
-    @apply font-mono text-[13px];
+    @apply absolute inset-0 py-3 pr-4 pl-3 bg-transparent border-none outline-none;
+    @apply font-mono text-[12px];
     @apply overflow-auto whitespace-pre;
-    line-height: 22px;
+    line-height: 20px;
     tab-size: 2;
     z-index: 1;
     pointer-events: none;
@@ -182,16 +182,16 @@
 
   /* Line numbers */
   .line-numbers {
-    @apply w-12 pt-4 pb-4 pr-3 text-right flex-shrink-0;
+    @apply w-10 pt-3 pb-3 pr-2 text-right flex-shrink-0;
     @apply bg-surface-container border-r border-outline-variant;
-    @apply font-mono text-[13px] text-outline;
+    @apply font-mono text-[12px] text-outline;
     @apply select-none;
     overflow-y: hidden;
   }
 
   .line-numbers > div {
-    height: 22px;
-    line-height: 22px;
+    height: 20px;
+    line-height: 20px;
   }
 
   /* Caret colors for each database type */
