@@ -214,7 +214,7 @@ describe('Jobs Routes', () => {
 
       expect(res.status).toBe(200);
       expect(json.success).toBe(true);
-      expect(json.data.id).toBe(1);
+      expect(json.data.job.id).toBe(1);
     });
 
     test('should return 404 when job not found', async () => {
@@ -295,7 +295,7 @@ describe('Jobs Routes', () => {
         body: JSON.stringify({ is_active: false }),
       });
 
-      expect(mockSchedulerService.unscheduleJob).toHaveBeenCalledWith(1);
+      expect(mockSchedulerService.unscheduleJob).toHaveBeenCalledWith("1");
     });
 
     test('should return 404 when job not found', async () => {
@@ -320,7 +320,7 @@ describe('Jobs Routes', () => {
 
       expect(res.status).toBe(200);
       expect(json.success).toBe(true);
-      expect(mockSchedulerService.unscheduleJob).toHaveBeenCalledWith(1);
+      expect(mockSchedulerService.unscheduleJob).toHaveBeenCalledWith("1");
     });
 
     test('should return 404 when job not found', async () => {
@@ -349,7 +349,7 @@ describe('Jobs Routes', () => {
       expect(res.status).toBe(200);
       expect(json.success).toBe(true);
       expect(json.data.execution_id).toBe(1);
-      expect(mockJobExecutor.executeJob).toHaveBeenCalledWith(1, 'manual');
+      expect(mockJobExecutor.executeJob).toHaveBeenCalledWith("1", 'manual');
     });
 
     test('should return 404 when job not found', async () => {
@@ -461,7 +461,7 @@ describe('Jobs Routes', () => {
 
       expect(res.status).toBe(200);
       expect(json.success).toBe(true);
-      expect(json.data).toHaveLength(2);
+      expect(json.data.executions).toHaveLength(2);
     });
 
     test('should apply limit parameter', async () => {
@@ -469,7 +469,7 @@ describe('Jobs Routes', () => {
 
       await app.request('/jobs/1/executions?limit=5');
 
-      expect(mockJobService.getExecutions).toHaveBeenCalledWith(1, 5);
+      expect(mockJobService.getExecutions).toHaveBeenCalledWith("1", 5);
     });
   });
 
