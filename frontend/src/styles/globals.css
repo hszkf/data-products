@@ -182,7 +182,7 @@
 
   /* Line numbers */
   .line-numbers {
-    @apply w-10 pt-3 pb-3 pr-2 text-right flex-shrink-0;
+    @apply w-8 pt-3 pb-3 pr-2 text-right flex-shrink-0;
     @apply bg-surface-container border-r border-outline-variant;
     @apply font-mono text-[12px] text-outline;
     @apply select-none;
