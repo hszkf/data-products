@@ -24,7 +24,8 @@ import { ImportQueryDialog } from "~/components/ui/import-query-dialog";
 import { FileUploadDialog } from "~/components/ui/file-upload-dialog";
 import { useMerge } from "~/components/merge";
 import { cn } from "~/lib/utils";
-import { executeQuery as apiExecuteQuery, checkHealth, SavedQuery, clearSchemaCache, getSchemas } from "~/lib/api";
+import { executeQuery as apiExecuteQuery, checkHealth, clearSchemaCache, getSchemas } from "~/lib/api";
+import { LocalSavedQuery } from "~/lib/saved-queries";
 import { executeMergeQuery, MergeResult } from "~/lib/merge-sql";
 import { parseErrorLocation } from "~/lib/error-parser";
 import { getRedshiftTableName, getSqlServerTableName } from "~/lib/table-naming";
@@ -559,7 +560,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
   );
 
   const handleQuerySelect = React.useCallback(
-    (savedQuery: SavedQuery) => {
+    (savedQuery: LocalSavedQuery) => {
       setQuery(savedQuery.query_text);
       showToast(`Loaded query: ${savedQuery.query_name}`, "success");
     },

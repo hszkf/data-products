@@ -5,13 +5,13 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { X, FileCode, Clock, Trash2, Search, User } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { Button } from "./button";
-import { getSavedQueries, deleteQuery, SavedQuery } from "~/lib/api";
+import { getFilteredQueries, deleteLocalQuery, LocalSavedQuery } from "~/lib/saved-queries";
 import { useToast } from "./toast-provider";
 
 interface ImportQueryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onQuerySelect: (query: SavedQuery) => void;
+  onQuerySelect: (query: LocalSavedQuery) => void;
   queryType: "redshift" | "sqlserver" | "merge";
   colorScheme?: "redshift" | "sqlserver" | "merge";
 }
@@ -26,16 +26,16 @@ export function ImportQueryDialog({
   colorScheme = "redshift",
 }: ImportQueryDialogProps) {
   const { showToast } = useToast();
-  const [savedQueries, setSavedQueries] = React.useState<SavedQuery[]>([]);
+  const [savedQueries, setSavedQueries] = React.useState<LocalSavedQuery[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [authorFilter, setAuthorFilter] = React.useState<string>("All");
 
-  const fetchSavedQueries = React.useCallback(async () => {
+  const loadSavedQueries = React.useCallback(() => {
     setIsLoading(true);
     try {
-      const response = await getSavedQueries();
-      setSavedQueries(response.queries || []);
+      const queries = getFilteredQueries();
+      setSavedQueries(queries);
     } catch (error) {
       showToast("Failed to load saved queries", "error");
       setSavedQueries([]);
@@ -46,25 +46,25 @@ export function ImportQueryDialog({
 
   React.useEffect(() => {
     if (open) {
-      fetchSavedQueries();
+      loadSavedQueries();
       setSearchTerm("");
       setAuthorFilter("All");
     }
-  }, [open, fetchSavedQueries]);
+  }, [open, loadSavedQueries]);
 
-  const handleQueryClick = (query: SavedQuery) => {
+  const handleQueryClick = (query: LocalSavedQuery) => {
     onQuerySelect(query);
     onOpenChange(false);
   };
 
-  const handleDeleteQuery = async (e: React.MouseEvent, queryId: number) => {
+  const handleDeleteQuery = (e: React.MouseEvent, queryId: string) => {
     e.stopPropagation();
     if (!confirm("Are you sure you want to delete this query?")) return;
 
     try {
-      await deleteQuery(queryId);
+      deleteLocalQuery(queryId);
       showToast("Query deleted", "success");
-      fetchSavedQueries();
+      loadSavedQueries();
     } catch (error) {
       showToast("Failed to delete query", "error");
     }

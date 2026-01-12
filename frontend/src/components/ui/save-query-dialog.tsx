@@ -5,7 +5,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { X, Save } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { Button } from "./button";
-import { saveQuery } from "~/lib/api";
+import { saveLocalQuery, queryNameExists } from "~/lib/saved-queries";
 import { useToast } from "./toast-provider";
 
 interface SaveQueryDialogProps {
@@ -40,7 +40,7 @@ export function SaveQueryDialog({
     }
   }, [open]);
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!queryName.trim()) {
       showToast("Please enter a query name", "error");
       return;
@@ -51,10 +51,16 @@ export function SaveQueryDialog({
       return;
     }
 
+    // Check for duplicate names
+    if (queryNameExists(queryName.trim(), queryType)) {
+      showToast("A query with this name already exists", "error");
+      return;
+    }
+
     setIsSaving(true);
 
     try {
-      await saveQuery({
+      saveLocalQuery({
         query_name: queryName.trim(),
         query_text: queryText,
         query_type: queryType,
@@ -62,7 +68,7 @@ export function SaveQueryDialog({
         description: description.trim() || undefined,
       });
 
-      showToast("Query saved successfully", "success");
+      showToast("Query saved to browser storage", "success");
       onOpenChange(false);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to save query";
