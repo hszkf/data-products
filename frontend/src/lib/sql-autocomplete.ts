@@ -29,9 +29,14 @@ interface SchemaCache {
   timestamp: number;
 }
 
+interface ColumnInfo {
+  name: string;
+  dataType: string;
+}
+
 interface ColumnCache {
   [tableFullName: string]: {
-    columns: string[];
+    columns: ColumnInfo[];
     timestamp: number;
   };
 }
@@ -114,7 +119,7 @@ function saveColumnCache(cache: ColumnCache): void {
 /**
  * Get columns for a table from cache
  */
-function getCachedColumns(tableFullName: string): string[] | null {
+function getCachedColumns(tableFullName: string): ColumnInfo[] | null {
   // Check memory cache first
   const memCached = memoryColumnCache[tableFullName];
   if (memCached && Date.now() - memCached.timestamp < COLUMN_CACHE_TTL) {
@@ -136,7 +141,7 @@ function getCachedColumns(tableFullName: string): string[] | null {
 /**
  * Store columns in cache
  */
-function cacheColumns(tableFullName: string, columns: string[]): void {
+function cacheColumns(tableFullName: string, columns: ColumnInfo[]): void {
   const entry = { columns, timestamp: Date.now() };
 
   // Update memory cache
@@ -149,10 +154,30 @@ function cacheColumns(tableFullName: string, columns: string[]): void {
 }
 
 /**
+ * Simplify data type for display (e.g., "character varying(256)" -> "varchar(256)")
+ */
+function simplifyDataType(dataType: string): string {
+  if (!dataType) return '';
+  const lower = dataType.toLowerCase();
+
+  // Common type simplifications
+  if (lower.startsWith('character varying')) return lower.replace('character varying', 'varchar');
+  if (lower === 'integer') return 'int';
+  if (lower === 'bigint') return 'bigint';
+  if (lower === 'smallint') return 'smallint';
+  if (lower === 'double precision') return 'double';
+  if (lower === 'boolean') return 'bool';
+  if (lower.startsWith('timestamp')) return 'timestamp';
+  if (lower.startsWith('numeric')) return lower;
+
+  return lower;
+}
+
+/**
  * Fetch columns for a table from Redshift (async)
  * This is called when columns aren't in cache
  */
-export async function fetchTableColumns(schemaName: string, tableName: string): Promise<string[]> {
+export async function fetchTableColumns(schemaName: string, tableName: string): Promise<ColumnInfo[]> {
   const fullName = `${schemaName}.${tableName}`;
 
   // Check cache first
@@ -161,7 +186,7 @@ export async function fetchTableColumns(schemaName: string, tableName: string): 
 
   try {
     const query = `
-      SELECT column_name
+      SELECT column_name, data_type
       FROM information_schema.columns
       WHERE table_schema = '${schemaName}'
         AND table_name = '${tableName}'
@@ -169,7 +194,10 @@ export async function fetchTableColumns(schemaName: string, tableName: string): 
     `;
 
     const result = await executeQuery("redshift", query);
-    const columns = result.rows.map(row => String(row.column_name));
+    const columns: ColumnInfo[] = result.rows.map(row => ({
+      name: String(row.column_name),
+      dataType: simplifyDataType(String(row.data_type || '')),
+    }));
 
     // Cache the results
     if (columns.length > 0) {
@@ -253,12 +281,12 @@ export function getSuggestions(
       const prefix = tableRef.columnPrefix;
 
       for (const col of columns) {
-        if (!prefix || col.toLowerCase().startsWith(prefix)) {
+        if (!prefix || col.name.toLowerCase().startsWith(prefix)) {
           suggestions.push({
-            value: col,
-            label: col,
+            value: col.name,
+            label: col.name,
             type: "column",
-            detail: tableRef.table,
+            detail: col.dataType,
           });
         }
         if (suggestions.length >= 15) break;
