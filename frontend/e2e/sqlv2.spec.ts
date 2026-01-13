@@ -21,37 +21,31 @@ async function setupLoggedInSession(page: Page) {
 // Mock API responses for consistent testing
 async function setupMocks(page: Page) {
   // Mock health endpoint
-  await page.route('**/unified/health', async (route) => {
+  await page.route('**/sqlv2/health', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
+        status: 'connected',
         redshift: { connected: true, message: 'Connected to Redshift' },
         sqlserver: { connected: true, message: 'Connected to SQL Server' },
       }),
     });
   });
 
-  // Mock schema endpoint
-  await page.route('**/unified/schemas', async (route) => {
+  // Mock schema endpoint (singular, not plural)
+  await page.route('**/sqlv2/schema', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
+        status: 'success',
         schemas: {
           redshift: {
-            public_customers: {
-              customer_id: { column_name: 'customer_id', data_type: 'integer' },
-              name: { column_name: 'name', data_type: 'varchar' },
-            },
+            public_customers: ['customer_id', 'name', 'email'],
           },
           sqlserver: {
-            dbo: {
-              users: {
-                id: { column_name: 'id', data_type: 'int' },
-                email: { column_name: 'email', data_type: 'nvarchar' },
-              },
-            },
+            dbo: ['id', 'email', 'username'],
           },
         },
         summary: {
@@ -63,23 +57,21 @@ async function setupMocks(page: Page) {
   });
 
   // Mock query execution
-  await page.route('**/unified/execute', async (route) => {
+  await page.route('**/sqlv2/execute', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        success: true,
-        results: [
+        status: 'success',
+        columns: ['customer_id', 'name', 'email'],
+        rows: [
           { customer_id: 1, name: 'Test Customer', email: 'test@example.com' },
           { customer_id: 2, name: 'Another Customer', email: 'another@example.com' },
         ],
-        rowCount: 2,
-        executionTime: 125,
-        sources: {
-          redshift: { rows: 2, time: 80 },
-          sqlserver: { rows: 2, time: 45 },
-        },
-        messages: [],
+        row_count: 2,
+        execution_time: 125,
+        source: 'cross',
+        message: 'Query executed successfully',
       }),
     });
   });
@@ -100,13 +92,14 @@ test.describe('SQLv2 Page - Unified SQL Editor', () => {
 
   test.describe('Page Load & Layout', () => {
     test('should display SQLv2 page with header', async ({ page }) => {
-      // Check header elements
-      await expect(page.getByRole('heading', { name: 'SQL Studio' })).toBeVisible();
+      // Check header elements - title is now in AppHeader
+      await expect(page.getByText('SQL Studio')).toBeVisible();
+      // Unified Query Engine is now in toolbar
       await expect(page.getByText('Unified Query Engine')).toBeVisible();
     });
 
     test('should show connection status indicators', async ({ page }) => {
-      // Check both database status indicators are visible
+      // Check both database status indicators are visible in toolbar
       await expect(page.getByText('Redshift').first()).toBeVisible();
       await expect(page.getByText('SQL Server').first()).toBeVisible();
     });
@@ -137,11 +130,12 @@ test.describe('SQLv2 Page - Unified SQL Editor', () => {
 
     test('should show disconnected status when database offline', async ({ page }) => {
       // Override mock with disconnected status
-      await page.route('**/unified/health', async (route) => {
+      await page.route('**/sqlv2/health', async (route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
+            status: 'disconnected',
             redshift: { connected: false, message: 'Connection failed' },
             sqlserver: { connected: true, message: 'Connected' },
           }),
@@ -199,9 +193,9 @@ test.describe('SQLv2 Page - Unified SQL Editor', () => {
       // Click on Query 1 tab
       await page.getByText('Query 1').click();
 
-      // Query 1 should be active (white text on dark bg)
+      // Query 1 should be active (visible with active styling)
       const tab1 = page.locator('text=Query 1').locator('..');
-      await expect(tab1).toHaveClass(/bg-\[#1e1e1e\]/);
+      await expect(tab1).toHaveClass(/bg-surface/);
     });
 
     test('should close tab when clicking X', async ({ page }) => {
@@ -355,14 +349,17 @@ test.describe('SQLv2 Page - Unified SQL Editor', () => {
   test.describe('Error Handling', () => {
     test('should display error message for failed query', async ({ page }) => {
       // Override mock with error
-      await page.route('**/unified/execute', async (route) => {
+      await page.route('**/sqlv2/execute', async (route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            success: false,
+            status: 'error',
+            columns: [],
+            rows: [],
+            row_count: 0,
+            execution_time: 0,
             error: 'Syntax error in SQL query',
-            messages: ['Line 1: Invalid syntax near SELECT'],
           }),
         });
       });
@@ -376,7 +373,7 @@ test.describe('SQLv2 Page - Unified SQL Editor', () => {
 
     test('should handle connection error gracefully', async ({ page }) => {
       // Override mock with network error
-      await page.route('**/unified/execute', async (route) => {
+      await page.route('**/sqlv2/execute', async (route) => {
         await route.abort('failed');
       });
 
