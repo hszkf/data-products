@@ -57,10 +57,11 @@ export function CodeEditor({
 
   const handleKeyDownInternal = React.useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // Tab support
-      if (e.key === "Tab") {
+      const target = e.target as HTMLTextAreaElement;
+
+      // Tab support - insert 2 spaces
+      if (e.key === "Tab" && !e.shiftKey) {
         e.preventDefault();
-        const target = e.target as HTMLTextAreaElement;
         const start = target.selectionStart;
         const end = target.selectionEnd;
         const newValue =
@@ -70,6 +71,150 @@ export function CodeEditor({
         // Set cursor position after the tab
         requestAnimationFrame(() => {
           target.selectionStart = target.selectionEnd = start + 2;
+        });
+      }
+
+      // Cmd+/ or Ctrl+/ - Toggle line comment
+      if (e.key === "/" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        const start = target.selectionStart;
+        const end = target.selectionEnd;
+
+        // Find the start and end line indices
+        const lines = value.split("\n");
+        let charCount = 0;
+        let startLineIndex = 0;
+        let endLineIndex = 0;
+
+        for (let i = 0; i < lines.length; i++) {
+          const lineLength = lines[i].length + 1; // +1 for newline
+          if (charCount + lineLength > start && startLineIndex === 0) {
+            startLineIndex = i;
+          }
+          if (charCount + lineLength >= end) {
+            endLineIndex = i;
+            break;
+          }
+          charCount += lineLength;
+        }
+
+        // Get the lines to toggle
+        const selectedLines = lines.slice(startLineIndex, endLineIndex + 1);
+
+        // Check if all selected lines are commented (start with --)
+        const allCommented = selectedLines.every(
+          (line) => line.trimStart().startsWith("--")
+        );
+
+        // Toggle comments
+        const newLines = [...lines];
+        for (let i = startLineIndex; i <= endLineIndex; i++) {
+          if (allCommented) {
+            // Remove comment - handle "-- " and "--" patterns
+            newLines[i] = lines[i].replace(/^(\s*)--\s?/, "$1");
+          } else {
+            // Add comment at the start (preserving indentation)
+            const match = lines[i].match(/^(\s*)/);
+            const indent = match ? match[1] : "";
+            const content = lines[i].substring(indent.length);
+            newLines[i] = indent + "-- " + content;
+          }
+        }
+
+        const newValue = newLines.join("\n");
+        onChange(newValue);
+
+        // Adjust cursor position
+        requestAnimationFrame(() => {
+          // Calculate new positions
+          const commentDiff = allCommented ? -3 : 3; // "-- " is 3 characters
+          const linesDiff = (endLineIndex - startLineIndex + 1) * commentDiff;
+
+          if (start === end) {
+            // No selection - just move cursor
+            const newPos = Math.max(0, start + commentDiff);
+            target.selectionStart = target.selectionEnd = newPos;
+          } else {
+            // Maintain selection on the toggled lines
+            const newStart = Math.max(0, start + (allCommented ? -3 : 3));
+            const newEnd = Math.max(0, end + linesDiff);
+            target.selectionStart = newStart;
+            target.selectionEnd = newEnd;
+          }
+        });
+      }
+
+      // Cmd+D or Ctrl+D - Duplicate line
+      if (e.key === "d" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        const start = target.selectionStart;
+        const lines = value.split("\n");
+
+        // Find current line
+        let charCount = 0;
+        let currentLineIndex = 0;
+        for (let i = 0; i < lines.length; i++) {
+          charCount += lines[i].length + 1;
+          if (charCount > start) {
+            currentLineIndex = i;
+            break;
+          }
+        }
+
+        // Duplicate the line
+        const newLines = [...lines];
+        newLines.splice(currentLineIndex + 1, 0, lines[currentLineIndex]);
+        const newValue = newLines.join("\n");
+        onChange(newValue);
+
+        // Move cursor to the duplicated line
+        requestAnimationFrame(() => {
+          const newPos = start + lines[currentLineIndex].length + 1;
+          target.selectionStart = target.selectionEnd = newPos;
+        });
+      }
+
+      // Cmd+Shift+Up/Down or Alt+Up/Down - Move line up/down
+      if ((e.key === "ArrowUp" || e.key === "ArrowDown") && (e.altKey || (e.metaKey && e.shiftKey))) {
+        e.preventDefault();
+        const start = target.selectionStart;
+        const lines = value.split("\n");
+
+        // Find current line
+        let charCount = 0;
+        let currentLineIndex = 0;
+        for (let i = 0; i < lines.length; i++) {
+          charCount += lines[i].length + 1;
+          if (charCount > start) {
+            currentLineIndex = i;
+            break;
+          }
+        }
+
+        const direction = e.key === "ArrowUp" ? -1 : 1;
+        const targetIndex = currentLineIndex + direction;
+
+        // Check bounds
+        if (targetIndex < 0 || targetIndex >= lines.length) {
+          return;
+        }
+
+        // Swap lines
+        const newLines = [...lines];
+        [newLines[currentLineIndex], newLines[targetIndex]] = [newLines[targetIndex], newLines[currentLineIndex]];
+        const newValue = newLines.join("\n");
+        onChange(newValue);
+
+        // Calculate new cursor position
+        requestAnimationFrame(() => {
+          let newCharCount = 0;
+          for (let i = 0; i < targetIndex; i++) {
+            newCharCount += newLines[i].length + 1;
+          }
+          // Position cursor at same offset within the moved line
+          const lineOffset = start - (charCount - lines[currentLineIndex].length - 1);
+          const newPos = newCharCount + Math.min(lineOffset, newLines[targetIndex].length);
+          target.selectionStart = target.selectionEnd = newPos;
         });
       }
 
