@@ -194,6 +194,50 @@
     line-height: 20px;
   }
 
+  /* Code line numbers for sqlv2 */
+  .code-line-numbers {
+    @apply pt-3 pb-3 pr-1 text-right;
+    @apply font-mono text-[12px] text-on-surface-variant;
+    @apply select-none;
+    overflow-y: hidden;
+  }
+
+  .code-line-numbers > div {
+    height: 20px;
+    line-height: 20px;
+  }
+
+  /* Theme-aware SQL syntax highlighting */
+  .sql-keyword {
+    color: rgb(var(--syntax-keyword));
+    font-weight: 600;
+  }
+
+  .sql-function {
+    color: rgb(var(--syntax-function));
+  }
+
+  .sql-string {
+    color: rgb(var(--syntax-string));
+  }
+
+  .sql-number {
+    color: rgb(var(--syntax-number));
+  }
+
+  .sql-comment {
+    color: rgb(var(--syntax-comment));
+    font-style: italic;
+  }
+
+  .sql-operator {
+    color: rgb(var(--syntax-operator));
+  }
+
+  .sql-table {
+    color: rgb(var(--syntax-table));
+  }
+
   /* Caret colors for each database type */
   .caret-redshift {
     caret-color: #ff9900 !important;

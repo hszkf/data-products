@@ -385,9 +385,14 @@ test.describe('SQLv2 Page - Unified SQL Editor', () => {
     });
   });
 
-  test.describe('Sidebar Resize', () => {
-    test('should have resize handle', async ({ page }) => {
+  test.describe('Panel Resize', () => {
+    test('should have sidebar resize handle', async ({ page }) => {
       const resizeHandle = page.locator('aside').locator('.cursor-col-resize');
+      await expect(resizeHandle).toBeVisible();
+    });
+
+    test('should have editor resize handle', async ({ page }) => {
+      const resizeHandle = page.locator('.cursor-row-resize');
       await expect(resizeHandle).toBeVisible();
     });
 
@@ -396,6 +401,19 @@ test.describe('SQLv2 Page - Unified SQL Editor', () => {
       const sidebar = page.locator('aside');
       const box = await sidebar.boundingBox();
       expect(box?.width).toBeGreaterThan(100);
+    });
+
+    test('should persist editor height', async ({ page }) => {
+      // Wait for localStorage to be set
+      await page.waitForTimeout(500);
+
+      // Check localStorage for editor height
+      const height = await page.evaluate(() => {
+        return localStorage.getItem('sqlv2-editor-height');
+      });
+
+      expect(height).not.toBeNull();
+      expect(parseInt(height!)).toBeGreaterThan(50);
     });
   });
 
