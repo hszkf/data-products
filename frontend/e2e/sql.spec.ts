@@ -42,9 +42,6 @@ const MOCK_QUERY_RESULT = {
   message: 'Query executed successfully (3 rows)'
 };
 
-// Configure tests to run serially
-test.describe.configure({ mode: 'serial' });
-
 // Helper to setup all API mocks
 async function setupSQLMocks(page: Page) {
   // Mock login endpoint

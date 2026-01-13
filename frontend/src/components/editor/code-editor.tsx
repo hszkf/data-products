@@ -3,6 +3,8 @@
 import * as React from "react";
 import { cn } from "~/lib/utils";
 import { highlightSql } from "~/lib/sql-syntax";
+import { getSuggestions, getCurrentWord, type AutocompleteSuggestion } from "~/lib/sql-autocomplete";
+import { AutocompleteDropdown } from "./autocomplete-dropdown";
 import type { DatabaseType } from "./editor-panel";
 
 interface CodeEditorProps {
@@ -32,6 +34,12 @@ export function CodeEditor({
   const lineNumbersRef = React.useRef<HTMLDivElement>(null);
   const highlightRef = React.useRef<HTMLPreElement>(null);
 
+  // Autocomplete state
+  const [suggestions, setSuggestions] = React.useState<AutocompleteSuggestion[]>([]);
+  const [selectedIndex, setSelectedIndex] = React.useState(0);
+  const [showAutocomplete, setShowAutocomplete] = React.useState(false);
+  const [autocompletePosition, setAutocompletePosition] = React.useState({ top: 0, left: 0 });
+
   const lineCount = React.useMemo(() => {
     return Math.max(value.split("\n").length, 1);
   }, [value]);
@@ -48,16 +56,102 @@ export function CodeEditor({
     }
   }, []);
 
+  // Update autocomplete suggestions
+  const updateAutocomplete = React.useCallback(() => {
+    if (!textareaRef.current) return;
+
+    const textarea = textareaRef.current;
+    const cursorPos = textarea.selectionStart;
+    const newSuggestions = getSuggestions(value, cursorPos, colorScheme);
+
+    if (newSuggestions.length > 0) {
+      setSuggestions(newSuggestions);
+      setSelectedIndex(0);
+      setShowAutocomplete(true);
+
+      // Calculate position for dropdown
+      const textBeforeCursor = value.substring(0, cursorPos);
+      const lines = textBeforeCursor.split("\n");
+      const currentLine = lines.length;
+      const currentColumn = lines[lines.length - 1].length;
+
+      // Position below the current line
+      // Line height is ~20px, padding is ~12px
+      const top = 12 + currentLine * 20;
+      // Account for line numbers width (~44px) and character width (~8px)
+      const left = 44 + Math.min(currentColumn * 8, 300);
+
+      setAutocompletePosition({ top, left });
+    } else {
+      setShowAutocomplete(false);
+    }
+  }, [value, colorScheme]);
+
+  // Handle selecting an autocomplete suggestion
+  const handleAutocompleteSelect = React.useCallback((suggestion: AutocompleteSuggestion) => {
+    if (!textareaRef.current) return;
+
+    const textarea = textareaRef.current;
+    const cursorPos = textarea.selectionStart;
+    const { start } = getCurrentWord(value, cursorPos);
+
+    // Replace the current word with the suggestion
+    const newValue = value.substring(0, start) + suggestion.value + value.substring(cursorPos);
+    onChange(newValue);
+
+    // Move cursor to end of inserted text
+    const newCursorPos = start + suggestion.value.length;
+    requestAnimationFrame(() => {
+      textarea.selectionStart = textarea.selectionEnd = newCursorPos;
+      textarea.focus();
+    });
+
+    setShowAutocomplete(false);
+  }, [value, onChange]);
+
+  // Close autocomplete on blur (with delay to allow click selection)
+  const handleBlur = React.useCallback(() => {
+    setTimeout(() => {
+      setShowAutocomplete(false);
+    }, 150);
+  }, []);
+
   const handleInput = React.useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       onChange(e.target.value);
+      // Trigger autocomplete update after a short delay
+      setTimeout(updateAutocomplete, 50);
     },
-    [onChange]
+    [onChange, updateAutocomplete]
   );
 
   const handleKeyDownInternal = React.useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       const target = e.target as HTMLTextAreaElement;
+
+      // Handle autocomplete navigation when dropdown is visible
+      if (showAutocomplete && suggestions.length > 0) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setSelectedIndex((prev) => (prev + 1) % suggestions.length);
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setSelectedIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+          return;
+        }
+        if (e.key === "Tab" || e.key === "Enter") {
+          e.preventDefault();
+          handleAutocompleteSelect(suggestions[selectedIndex]);
+          return;
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setShowAutocomplete(false);
+          return;
+        }
+      }
 
       // Tab support - insert 2 spaces
       if (e.key === "Tab" && !e.shiftKey) {
@@ -220,7 +314,7 @@ export function CodeEditor({
 
       onKeyDown?.(e);
     },
-    [value, onChange, onKeyDown]
+    [value, onChange, onKeyDown, showAutocomplete, suggestions, selectedIndex, handleAutocompleteSelect]
   );
 
   const handleSelect = React.useCallback(() => {
@@ -299,6 +393,7 @@ export function CodeEditor({
             onScroll={handleScroll}
             onSelect={handleSelect}
             onClick={handleSelect}
+            onBlur={handleBlur}
             placeholder={placeholder}
             spellCheck={false}
             autoComplete="off"
@@ -309,6 +404,15 @@ export function CodeEditor({
               colorScheme === "redshift" && "caret-redshift",
               colorScheme === "sqlserver" && "caret-sqlserver"
             )}
+          />
+
+          {/* Autocomplete Dropdown */}
+          <AutocompleteDropdown
+            suggestions={suggestions}
+            selectedIndex={selectedIndex}
+            onSelect={handleAutocompleteSelect}
+            position={autocompletePosition}
+            visible={showAutocomplete}
           />
         </div>
       </div>
