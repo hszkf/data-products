@@ -1,7 +1,7 @@
 
 
 import * as React from "react";
-import { Play, Wand2, GitBranch, Database, TableProperties, PanelLeftClose, PanelLeft, Save, ChevronDown, FileDown, Upload, MoreVertical, RefreshCw, Trash2 } from "lucide-react";
+import { Play, Square, Wand2, GitBranch, Database, TableProperties, PanelLeftClose, PanelLeft, Save, ChevronDown, FileDown, Upload, MoreVertical, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import {
   Tooltip,
@@ -29,6 +29,7 @@ import { LocalSavedQuery } from "~/lib/saved-queries";
 import { executeMergeQuery, MergeResult } from "~/lib/merge-sql";
 import { parseErrorLocation } from "~/lib/error-parser";
 import { getRedshiftTableName, getSqlServerTableName } from "~/lib/table-naming";
+import { useQueryExecution } from "~/lib/query-execution-context";
 
 export type DatabaseType = "redshift" | "sqlserver";
 
@@ -113,10 +114,21 @@ interface TabState extends EditorTab {
 // Generate unique tab ID
 const generateTabId = () => `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+// Format execution time to mins and secs
+function formatExecutionTime(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds.toFixed(2)}s`;
+  }
+  const mins = Math.floor(seconds / 60);
+  const secs = (seconds % 60).toFixed(1);
+  return `${mins}m ${secs}s`;
+}
+
 // LocalStorage keys
 const getStorageKey = (dbType: DatabaseType) => `sql-editor-tabs-${dbType}`;
 const getActiveTabKey = (dbType: DatabaseType) => `sql-editor-active-tab-${dbType}`;
 const getConnectionCacheKey = (dbType: DatabaseType) => `sql-connection-status-${dbType}`;
+const getEditorHeightKey = (dbType: DatabaseType) => `sql-editor-height-${dbType}`;
 
 // Connection cache TTL (5 minutes)
 const CONNECTION_CACHE_TTL = 5 * 60 * 1000;
@@ -162,6 +174,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
   const config = databaseConfig[type];
   const { showToast } = useToast();
   const { tables, saveTable } = useMerge();
+  const queryExecution = useQueryExecution();
   const panelRef = React.useRef<HTMLDivElement>(null);
 
   // Get the effective default query (prop or built-in default)
@@ -244,11 +257,38 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
   const errorMessage = activeTab?.errorMessage || null;
   const cursorPosition = activeTab?.cursorPosition || { line: 1, column: 1 };
 
-  const [isLoading, setIsLoading] = React.useState(false);
+  // Check if query is running from the global context
+  const isLoading = queryExecution.isRunning(type, activeTabId);
   const [isConnected, setIsConnected] = React.useState<boolean | null>(null);
   const [isExplorerOpen, setIsExplorerOpen] = React.useState(false);
   const [explorerWidth, setExplorerWidth] = React.useState(260);
   const [isResizing, setIsResizing] = React.useState(false);
+  const [resizeType, setResizeType] = React.useState<"sidebar" | "editor" | null>(null);
+
+  // Editor height state with localStorage persistence
+  const [editorHeight, setEditorHeight] = React.useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(getEditorHeightKey(type));
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed >= 100 && parsed <= 800) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Ignore
+    }
+    return 250; // Default editor height
+  });
+
+  // Persist editor height to localStorage
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(getEditorHeightKey(type), String(editorHeight));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [editorHeight, type]);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = React.useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = React.useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = React.useState(false);
@@ -333,6 +373,27 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
     );
   }, []);
 
+  // Restore execution state when component mounts or active tab changes
+  React.useEffect(() => {
+    const execution = queryExecution.getExecution(type, activeTabId);
+    if (execution) {
+      // Restore result if query completed while we were away
+      if (execution.result && !execution.isRunning) {
+        updateActiveTab({ result: execution.result });
+      }
+      // Restore error if query failed
+      if (execution.error && !execution.isRunning) {
+        const errorLocation = parseErrorLocation(execution.error);
+        if (errorLocation) {
+          updateActiveTab({
+            errorLine: errorLocation.line,
+            errorMessage: execution.error,
+          });
+        }
+      }
+    }
+  }, [type, activeTabId, queryExecution, updateActiveTab]);
+
   // Check connection status on mount - use cache first, then refresh in background
   React.useEffect(() => {
     let mounted = true;
@@ -374,25 +435,38 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
     };
   }, [type]);
 
-  // Handle explorer resize
+  // Ref to track editor container for resize calculations
+  const editorContainerRef = React.useRef<HTMLDivElement>(null);
+
+  // Handle resize (both sidebar and editor)
   React.useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing || !panelRef.current) return;
-      // Calculate width relative to panel's left edge
-      const panelRect = panelRef.current.getBoundingClientRect();
-      const newWidth = e.clientX - panelRect.left;
-      // Constrain width between 150px and 400px
-      setExplorerWidth(Math.min(400, Math.max(150, newWidth)));
+
+      if (resizeType === "sidebar") {
+        // Calculate width relative to panel's left edge
+        const panelRect = panelRef.current.getBoundingClientRect();
+        const newWidth = e.clientX - panelRect.left;
+        // Constrain width between 150px and 400px
+        setExplorerWidth(Math.min(400, Math.max(150, newWidth)));
+      } else if (resizeType === "editor" && editorContainerRef.current) {
+        // Calculate height relative to the editor container's top
+        const containerRect = editorContainerRef.current.getBoundingClientRect();
+        const newHeight = e.clientY - containerRect.top;
+        // Constrain height between 100px and 800px
+        setEditorHeight(Math.min(800, Math.max(100, newHeight)));
+      }
     };
 
     const handleMouseUp = () => {
       setIsResizing(false);
+      setResizeType(null);
     };
 
     if (isResizing) {
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
-      document.body.style.cursor = "col-resize";
+      document.body.style.cursor = resizeType === "sidebar" ? "col-resize" : "row-resize";
       document.body.style.userSelect = "none";
     }
 
@@ -402,7 +476,13 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
     };
-  }, [isResizing]);
+  }, [isResizing, resizeType]);
+
+  // Stop running query
+  const stopQuery = React.useCallback(() => {
+    queryExecution.stopExecution(type, activeTabId);
+    showToast("Query cancelled", "info");
+  }, [queryExecution, type, activeTabId, showToast]);
 
   const executeQuery = React.useCallback(async () => {
     if (!query.trim()) {
@@ -410,7 +490,6 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
       return;
     }
 
-    setIsLoading(true);
     setResult(null);
     setErrorLine(null);
     setErrorMessage(null);
@@ -442,13 +521,13 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
           executionTime: mergeResult.executionTime,
           error: mergeResult.error,
           message: mergeResult.status === "success" ?
-            `Query executed successfully (${mergeResult.rowCount} rows in ${mergeResult.executionTime}s)` :
+            `Query executed successfully (${mergeResult.rowCount} rows in ${formatExecutionTime(mergeResult.executionTime)})` :
             undefined,
         });
 
         if (mergeResult.status === "success") {
           showToast(
-            `Query executed successfully (${mergeResult.rowCount} rows in ${mergeResult.executionTime}s)`,
+            `Query executed successfully (${mergeResult.rowCount} rows in ${formatExecutionTime(mergeResult.executionTime)})`,
             "success"
           );
         } else {
@@ -464,20 +543,20 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
           executionTime: 0,
           error: errorMsg,
         });
-      } finally {
-        setIsLoading(false);
       }
     } else {
-      // Normal database query execution
+      // Normal database query execution - use global context for persistence
       try {
-        const response = await apiExecuteQuery(type, query);
+        const result = await queryExecution.startExecution(type, activeTabId, query);
 
         setResult({
-          columns: response.columns,
-          rows: response.rows,
-          executionTime: response.execution_time,
-          message: response.message,
+          columns: result.columns,
+          rows: result.rows,
+          executionTime: result.executionTime,
+          message: result.message,
         });
+
+        const response = result;
 
         // Auto-save results to merge context for cross-database queries
         // Only save if it looks like a table query (not a random SQL statement)
@@ -498,7 +577,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
           if (isSystemQuery) {
             // Don't save system metadata queries
             showToast(
-              `Query executed successfully (${response.row_count} rows in ${response.execution_time}s)`,
+              `Query executed successfully (${response.rows.length} rows in ${formatExecutionTime(response.executionTime)})`,
               "success"
             );
             return;
@@ -524,11 +603,17 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
           );
         } else {
           showToast(
-            `Query executed successfully (${response.row_count} rows in ${response.execution_time}s)`,
+            `Query executed successfully (${response.rows.length} rows in ${formatExecutionTime(response.executionTime)})`,
             "success"
           );
         }
       } catch (error) {
+        // Check if query was aborted
+        if (error instanceof Error && error.name === 'AbortError') {
+          // Query was cancelled - don't show error
+          return;
+        }
+
         const errorMsg =
           error instanceof Error ? error.message : "Query execution failed";
         showToast(errorMsg, "error");
@@ -565,11 +650,9 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
           executionTime: 0,
           error: errorMsg,
         });
-      } finally {
-        setIsLoading(false);
       }
     }
-  }, [type, query, tables, showToast, saveTable]);
+  }, [type, activeTabId, query, tables, queryExecution, showToast, saveTable]);
 
   const handleKeyDown = React.useCallback(
     (e: React.KeyboardEvent) => {
@@ -803,29 +886,45 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
             </DropdownMenu>
           </div>
 
-          {/* Run button - prominent */}
-          <Button
-            variant="run"
-            size="sm"
-            className={cn(
-              "h-7 px-3 text-xs font-medium gap-1.5 rounded-md",
-              "shadow-sm transition-all duration-150",
-              "hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
-            )}
-            colorScheme={type}
-            onClick={executeQuery}
-            disabled={isLoading}
-          >
-            <Play className="w-3.5 h-3.5" />
-            <span>Run</span>
-            <kbd className={cn(
-              "hidden sm:inline-flex items-center gap-0.5 ml-1",
-              "px-1 py-0.5 rounded text-[10px] font-mono",
-              "bg-white/15 text-white/80"
-            )}>
-              ⌘↵
-            </kbd>
-          </Button>
+          {/* Run/Stop button - prominent */}
+          {isLoading ? (
+            <Button
+              variant="run"
+              size="sm"
+              className={cn(
+                "h-7 px-3 text-xs font-medium gap-1.5 rounded-md",
+                "shadow-sm transition-all duration-150",
+                "bg-red-500 hover:bg-red-600",
+                "hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+              )}
+              onClick={stopQuery}
+            >
+              <Square className="w-3.5 h-3.5 fill-current" />
+              <span>Stop</span>
+            </Button>
+          ) : (
+            <Button
+              variant="run"
+              size="sm"
+              className={cn(
+                "h-7 px-3 text-xs font-medium gap-1.5 rounded-md",
+                "shadow-sm transition-all duration-150",
+                "hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+              )}
+              colorScheme={type}
+              onClick={executeQuery}
+            >
+              <Play className="w-3.5 h-3.5" />
+              <span>Run</span>
+              <kbd className={cn(
+                "hidden sm:inline-flex items-center gap-0.5 ml-1",
+                "px-1 py-0.5 rounded text-[10px] font-mono",
+                "bg-white/15 text-white/80"
+              )}>
+                ⌘↵
+              </kbd>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -931,11 +1030,12 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
               className={cn(
                 "w-1 cursor-col-resize flex-shrink-0 transition-colors",
                 "hover:bg-primary/30",
-                isResizing && "bg-primary/50"
+                isResizing && resizeType === "sidebar" && "bg-primary/50"
               )}
               onMouseDown={(e) => {
                 e.preventDefault();
                 setIsResizing(true);
+                setResizeType("sidebar");
               }}
             />
           </div>
@@ -943,20 +1043,48 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
 
         {/* Editor & Results - adds left margin when sidebar is open */}
         <div
+          ref={editorContainerRef}
           className="flex-1 flex flex-col min-h-0 min-w-0 transition-[margin] duration-200"
           style={{ marginLeft: isExplorerOpen ? explorerWidth : 0 }}
         >
-          <CodeEditor
-            value={query}
-            onChange={setQuery}
-            onKeyDown={handleKeyDown}
-            onCursorChange={setCursorPosition}
-            isLoading={isLoading}
-            colorScheme={type}
-            placeholder={`-- Enter your ${config.name} query here...`}
-            errorLine={errorLine}
-            errorMessage={errorMessage}
-          />
+          {/* Code Editor with fixed height */}
+          <div className="flex flex-col" style={{ height: editorHeight, flexShrink: 0 }}>
+            <CodeEditor
+              value={query}
+              onChange={setQuery}
+              onKeyDown={handleKeyDown}
+              onCursorChange={setCursorPosition}
+              isLoading={isLoading}
+              colorScheme={type}
+              placeholder={`-- Enter your ${config.name} query here...`}
+              errorLine={errorLine}
+              errorMessage={errorMessage}
+            />
+          </div>
+
+          {/* Resize handle between editor and results */}
+          <div
+            className={cn(
+              "h-1.5 cursor-row-resize flex-shrink-0 transition-colors relative group",
+              "hover:bg-primary/20",
+              isResizing && resizeType === "editor" && "bg-primary/40"
+            )}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setIsResizing(true);
+              setResizeType("editor");
+            }}
+          >
+            {/* Visual indicator */}
+            <div className={cn(
+              "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
+              "w-8 h-1 rounded-full bg-outline-variant/50",
+              "group-hover:bg-primary/50 transition-colors",
+              isResizing && resizeType === "editor" && "bg-primary/70"
+            )} />
+          </div>
+
+          {/* Results Panel - takes remaining space */}
           <ResultsPanel result={result} colorScheme={type} errorLine={errorLine} queryText={query} />
         </div>
       </div>

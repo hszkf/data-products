@@ -43,6 +43,35 @@ const ROWS_PER_PAGE = 100;
 const SCHEMA_CACHE_KEY = 'sql-schema-cache';
 const SCHEMA_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 const TABS_STORAGE_KEY = 'sqlv2-tabs';
+const HEALTH_CACHE_KEY = 'sqlv2-health-cache';
+const HEALTH_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+interface HealthCache {
+  data: UnifiedHealthStatus;
+  timestamp: number;
+}
+
+function getHealthFromCache(): UnifiedHealthStatus | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cached = localStorage.getItem(HEALTH_CACHE_KEY);
+    if (!cached) return null;
+    const { data, timestamp }: HealthCache = JSON.parse(cached);
+    if (Date.now() - timestamp < HEALTH_CACHE_TTL) {
+      return data;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function saveHealthToCache(data: UnifiedHealthStatus): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(HEALTH_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+  } catch {}
+}
 
 interface SchemaCache {
   data: UnifiedSchemaResult;
@@ -197,7 +226,28 @@ function SQLv2Page() {
     }
   }, [tabs, activeTabId]);
 
-  React.useEffect(() => { getUnifiedHealth().then(setHealth); }, []);
+  React.useEffect(() => {
+    // Check cache first for instant UI
+    const cachedHealth = getHealthFromCache();
+    if (cachedHealth) {
+      setHealth(cachedHealth);
+    }
+
+    const fetchHealth = async () => {
+      const data = await getUnifiedHealth();
+      setHealth(data);
+      saveHealthToCache(data);
+    };
+
+    // Only fetch immediately if no cache
+    if (!cachedHealth) {
+      fetchHealth();
+    } else {
+      // Refresh in background after 2 seconds
+      const timer = setTimeout(fetchHealth, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   React.useEffect(() => {
     const cached = getSchemaFromCache();

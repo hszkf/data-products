@@ -11,6 +11,16 @@ import type { DatabaseType } from "./editor-panel";
 
 const ROWS_PER_PAGE = 100;
 
+// Format execution time to mins and secs
+function formatExecutionTime(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds.toFixed(2)}s`;
+  }
+  const mins = Math.floor(seconds / 60);
+  const secs = (seconds % 60).toFixed(1);
+  return `${mins}m ${secs}s`;
+}
+
 interface QueryResult {
   columns: string[];
   rows: Record<string, unknown>[];
@@ -124,7 +134,7 @@ export function ResultsPanel({ result, colorScheme, errorLine, queryText }: Resu
   };
 
   return (
-    <div className="flex-1 min-h-[350px] border-t border-outline-variant flex flex-col">
+    <div className="flex-1 min-h-0 border-t border-outline-variant flex flex-col overflow-hidden">
       <Tabs defaultValue="results" className="flex flex-col h-full">
         <div className="flex items-center justify-between px-3 py-1.5 bg-surface-container border-b border-outline-variant gap-3">
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -227,7 +237,7 @@ export function ResultsPanel({ result, colorScheme, errorLine, queryText }: Resu
             <div className="flex items-center gap-3 text-[11px] text-on-surface-variant flex-shrink-0">
               <span className="flex items-center gap-1">
                 <Timer className="w-3.5 h-3.5" />
-                {result.executionTime ?? 0}s
+                {formatExecutionTime(result.executionTime ?? 0)}
               </span>
               <span className="flex items-center gap-1">
                 <TableProperties className="w-3.5 h-3.5" />

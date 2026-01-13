@@ -147,6 +147,37 @@ interface FileItem {
 
 type ListItem = FolderItem | FileItem;
 
+// Storage health cache
+const STORAGE_HEALTH_CACHE_KEY = 'storage-health-cache';
+const STORAGE_HEALTH_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+interface StorageHealthCache {
+  data: StorageHealthStatus;
+  timestamp: number;
+}
+
+function getStorageHealthFromCache(): StorageHealthStatus | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cached = localStorage.getItem(STORAGE_HEALTH_CACHE_KEY);
+    if (!cached) return null;
+    const { data, timestamp }: StorageHealthCache = JSON.parse(cached);
+    if (Date.now() - timestamp < STORAGE_HEALTH_CACHE_TTL) {
+      return data;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function saveStorageHealthToCache(data: StorageHealthStatus): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_HEALTH_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+  } catch {}
+}
+
 function FileIcon({ type, className = "w-4 h-4" }: { type: ReturnType<typeof getFileTypeIcon>; className?: string }) {
   const iconMap = {
     image: <FileImage className={`${className} text-pink-400`} />,
@@ -180,7 +211,7 @@ function StoragePageContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
-  const [healthStatus, setHealthStatus] = useState<StorageHealthStatus | null>(null);
+  const [healthStatus, setHealthStatus] = useState<StorageHealthStatus | null>(() => getStorageHealthFromCache());
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPath, setCurrentPath] = useState<string[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -266,14 +297,17 @@ function StoragePageContent() {
     try {
       const status = await checkStorageHealth();
       setHealthStatus(status);
+      saveStorageHealthToCache(status);
     } catch (error) {
-      setHealthStatus({
+      const errorStatus: StorageHealthStatus = {
         status: "disconnected",
         bucket: null,
         prefix: null,
         region: null,
         error: "Failed to check health",
-      });
+      };
+      setHealthStatus(errorStatus);
+      saveStorageHealthToCache(errorStatus);
     }
   }, []);
 
@@ -281,7 +315,13 @@ function StoragePageContent() {
   const hasInitiallyLoaded = useRef(false);
   if (!hasInitiallyLoaded.current) {
     hasInitiallyLoaded.current = true;
-    checkHealth();
+    // Only check immediately if no cached health status
+    // Otherwise refresh in background
+    if (!healthStatus) {
+      checkHealth();
+    } else {
+      setTimeout(checkHealth, 2000);
+    }
   }
 
   // Load items when path changes - using ref to track previous value

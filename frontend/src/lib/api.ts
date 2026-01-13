@@ -44,7 +44,8 @@ export interface ClearCacheResult {
 export async function executeQuery(
   database: "sqlserver" | "redshift",
   sql: string,
-  parameters?: unknown[]
+  parameters?: unknown[],
+  signal?: AbortSignal
 ): Promise<QueryResult> {
   try {
     const response = await fetch(`${API_BASE_URL}/${database}/execute`, {
@@ -53,6 +54,7 @@ export async function executeQuery(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ sql, parameters }),
+      signal,
     });
 
     if (!response.ok) {
