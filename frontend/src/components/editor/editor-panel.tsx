@@ -1,7 +1,7 @@
 
 
 import * as React from "react";
-import { Play, Square, Wand2, GitBranch, Database, TableProperties, PanelLeftClose, PanelLeft, Save, ChevronDown, FileDown, Upload, MoreVertical, RefreshCw, Trash2 } from "lucide-react";
+import { Play, Square, Wand2, GitBranch, Database, TableProperties, PanelLeftClose, PanelLeft, Save, ChevronDown, FileDown, Upload, MoreVertical, RefreshCw, Trash2, History, CheckCircle, XCircle, Clock } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import {
   Tooltip,
@@ -30,6 +30,13 @@ import { executeMergeQuery, MergeResult } from "~/lib/merge-sql";
 import { parseErrorLocation } from "~/lib/error-parser";
 import { getRedshiftTableName, getSqlServerTableName } from "~/lib/table-naming";
 import { useQueryExecution } from "~/lib/query-execution-context";
+import {
+  getHistory,
+  addToHistory,
+  clearHistory,
+  formatHistoryTimestamp,
+  type QueryHistoryEntry,
+} from "~/lib/query-history";
 
 export type DatabaseType = "redshift" | "sqlserver";
 
@@ -294,7 +301,16 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
   const [isUploadDialogOpen, setIsUploadDialogOpen] = React.useState(false);
   const [schemaRefreshKey, setSchemaRefreshKey] = React.useState(0);
   const [isClearingCache, setIsClearingCache] = React.useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = React.useState(false);
+  const [queryHistory, setQueryHistory] = React.useState<QueryHistoryEntry[]>([]);
   const explorerFileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Load query history when history dropdown opens
+  React.useEffect(() => {
+    if (isHistoryOpen) {
+      setQueryHistory(getHistory(type));
+    }
+  }, [isHistoryOpen, type]);
 
   // Tab management handlers
   const updateActiveTab = React.useCallback((updates: Partial<TabState>) => {
@@ -526,15 +542,21 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
         });
 
         if (mergeResult.status === "success") {
+          // Save to history
+          addToHistory(type, query, true, mergeResult.executionTime, mergeResult.rowCount);
           showToast(
             `Query executed successfully (${mergeResult.rowCount} rows in ${formatExecutionTime(mergeResult.executionTime)})`,
             "success"
           );
         } else {
+          // Save failed query to history
+          addToHistory(type, query, false);
           showToast(mergeResult.error || "Query execution failed", "error");
         }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : "Query execution failed";
+        // Save failed query to history
+        addToHistory(type, query, false);
         showToast(errorMsg, "error");
 
         setResult({
@@ -575,7 +597,8 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
             ));
 
           if (isSystemQuery) {
-            // Don't save system metadata queries
+            // Don't save system metadata queries to merge context, but save to history
+            addToHistory(type, query, true, response.executionTime, response.rows.length);
             showToast(
               `Query executed successfully (${response.rows.length} rows in ${formatExecutionTime(response.executionTime)})`,
               "success"
@@ -596,12 +619,17 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
             source: type,
           });
 
+          // Save to history
+          addToHistory(type, query, true, response.executionTime, response.rows.length);
+
           // Show toast with the table name
           showToast(
             `Query executed successfully! Results saved as table [${tableName}]`,
             "success"
           );
         } else {
+          // Save to history (query with no results or non-SELECT)
+          addToHistory(type, query, true, response.executionTime, response.rows.length);
           showToast(
             `Query executed successfully (${response.rows.length} rows in ${formatExecutionTime(response.executionTime)})`,
             "success"
@@ -610,12 +638,16 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
       } catch (error) {
         // Check if query was aborted
         if (error instanceof Error && error.name === 'AbortError') {
-          // Query was cancelled - don't show error
+          // Query was cancelled - don't show error or save to history
           return;
         }
 
         const errorMsg =
           error instanceof Error ? error.message : "Query execution failed";
+
+        // Save failed query to history
+        addToHistory(type, query, false);
+
         showToast(errorMsg, "error");
 
         // Check if error is a connection/authentication error and update status
@@ -882,6 +914,86 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
                   <FileDown className="w-4 h-4 mr-2" />
                   Import Query
                 </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* History Dropdown */}
+            <DropdownMenu open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        "h-7 w-7 p-0 rounded-md transition-all duration-150",
+                        "hover:bg-[var(--panel-tint)] hover:text-[var(--panel-primary)]",
+                        isHistoryOpen && "bg-[var(--panel-tint)] text-[var(--panel-primary)]"
+                      )}
+                    >
+                      <History className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Query History</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-auto">
+                <div className="flex items-center justify-between px-2 py-1.5 border-b border-outline-variant">
+                  <span className="text-xs font-semibold text-on-surface">Recent Queries</span>
+                  {queryHistory.length > 0 && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        clearHistory(type);
+                        setQueryHistory([]);
+                      }}
+                      className="text-[10px] text-on-surface-variant hover:text-red-400 transition-colors"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
+                {queryHistory.length === 0 ? (
+                  <div className="px-3 py-6 text-center text-on-surface-variant">
+                    <History className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-xs">No query history yet</p>
+                    <p className="text-[10px] opacity-70">Execute queries to build history</p>
+                  </div>
+                ) : (
+                  queryHistory.map((entry) => (
+                    <DropdownMenuItem
+                      key={entry.id}
+                      onClick={() => {
+                        setQuery(entry.query);
+                        setIsHistoryOpen(false);
+                      }}
+                      className="flex flex-col items-start gap-1 py-2 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2 w-full">
+                        {entry.success ? (
+                          <CheckCircle className="w-3 h-3 text-green-400 flex-shrink-0" />
+                        ) : (
+                          <XCircle className="w-3 h-3 text-red-400 flex-shrink-0" />
+                        )}
+                        <code className="text-[11px] font-mono text-on-surface truncate flex-1">
+                          {entry.query.length > 60 ? entry.query.slice(0, 60) + "..." : entry.query}
+                        </code>
+                      </div>
+                      <div className="flex items-center gap-3 text-[10px] text-on-surface-variant pl-5">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatHistoryTimestamp(entry.timestamp)}
+                        </span>
+                        {entry.executionTime !== undefined && (
+                          <span>{entry.executionTime.toFixed(2)}s</span>
+                        )}
+                        {entry.rowCount !== undefined && (
+                          <span>{entry.rowCount} rows</span>
+                        )}
+                      </div>
+                    </DropdownMenuItem>
+                  ))
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
