@@ -1,12 +1,12 @@
 /**
  * Autocomplete Dropdown Component
  *
- * Displays Redshift schema and table suggestions.
+ * Displays Redshift schema, table, and column suggestions.
  */
 
 import * as React from "react";
 import { cn } from "~/lib/utils";
-import { Database, FolderTree } from "lucide-react";
+import { Database, FolderTree, Columns } from "lucide-react";
 import type { AutocompleteSuggestion } from "~/lib/sql-autocomplete";
 
 interface AutocompleteDropdownProps {
@@ -67,6 +67,8 @@ export function AutocompleteDropdown({
             {/* Icon */}
             {suggestion.type === "schema" ? (
               <FolderTree className="w-3 h-3 text-amber-400 flex-shrink-0" />
+            ) : suggestion.type === "column" ? (
+              <Columns className="w-3 h-3 text-green-400 flex-shrink-0" />
             ) : (
               <Database className="w-3 h-3 text-blue-400 flex-shrink-0" />
             )}

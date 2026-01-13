@@ -1,18 +1,23 @@
 /**
- * SQL Autocomplete - Redshift Schema & Table Names
+ * SQL Autocomplete - Redshift Schema, Table & Column Names
  *
- * Fast autocomplete for Redshift schemas and table names from cache.
+ * Fast autocomplete for Redshift schemas, tables, and columns from cache.
+ * Columns are fetched on-demand when user types "schema.table." and cached locally.
  */
+
+import { executeQuery } from "./api";
 
 export interface AutocompleteSuggestion {
   value: string;
   label: string;
-  type: "schema" | "table";
+  type: "schema" | "table" | "column";
   detail?: string;
 }
 
 // Schema cache key (shared with schema-browser)
 const SCHEMA_CACHE_KEY = 'sql-schema-cache';
+const COLUMN_CACHE_KEY = 'sql-column-cache';
+const COLUMN_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 interface SchemaCache {
   data: {
@@ -24,9 +29,19 @@ interface SchemaCache {
   timestamp: number;
 }
 
+interface ColumnCache {
+  [tableFullName: string]: {
+    columns: string[];
+    timestamp: number;
+  };
+}
+
 // Cache the parsed schema data in memory for faster access
 let cachedSchemas: { schema: string; table: string; fullName: string }[] | null = null;
 let cacheTimestamp = 0;
+
+// Memory cache for columns (faster than localStorage)
+let memoryColumnCache: ColumnCache = {};
 
 /**
  * Load schemas from localStorage cache
@@ -69,6 +84,106 @@ function loadSchemas(): { schema: string; table: string; fullName: string }[] {
 }
 
 /**
+ * Load column cache from localStorage
+ */
+function loadColumnCache(): ColumnCache {
+  if (typeof window === 'undefined') return {};
+
+  try {
+    const cached = localStorage.getItem(COLUMN_CACHE_KEY);
+    if (!cached) return {};
+    return JSON.parse(cached);
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Save column cache to localStorage
+ */
+function saveColumnCache(cache: ColumnCache): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    localStorage.setItem(COLUMN_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+/**
+ * Get columns for a table from cache
+ */
+function getCachedColumns(tableFullName: string): string[] | null {
+  // Check memory cache first
+  const memCached = memoryColumnCache[tableFullName];
+  if (memCached && Date.now() - memCached.timestamp < COLUMN_CACHE_TTL) {
+    return memCached.columns;
+  }
+
+  // Check localStorage cache
+  const cache = loadColumnCache();
+  const cached = cache[tableFullName];
+  if (cached && Date.now() - cached.timestamp < COLUMN_CACHE_TTL) {
+    // Update memory cache
+    memoryColumnCache[tableFullName] = cached;
+    return cached.columns;
+  }
+
+  return null;
+}
+
+/**
+ * Store columns in cache
+ */
+function cacheColumns(tableFullName: string, columns: string[]): void {
+  const entry = { columns, timestamp: Date.now() };
+
+  // Update memory cache
+  memoryColumnCache[tableFullName] = entry;
+
+  // Update localStorage cache
+  const cache = loadColumnCache();
+  cache[tableFullName] = entry;
+  saveColumnCache(cache);
+}
+
+/**
+ * Fetch columns for a table from Redshift (async)
+ * This is called when columns aren't in cache
+ */
+export async function fetchTableColumns(schemaName: string, tableName: string): Promise<string[]> {
+  const fullName = `${schemaName}.${tableName}`;
+
+  // Check cache first
+  const cached = getCachedColumns(fullName);
+  if (cached) return cached;
+
+  try {
+    const query = `
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = '${schemaName}'
+        AND table_name = '${tableName}'
+      ORDER BY ordinal_position
+    `;
+
+    const result = await executeQuery("redshift", query);
+    const columns = result.rows.map(row => String(row.column_name));
+
+    // Cache the results
+    if (columns.length > 0) {
+      cacheColumns(fullName, columns);
+    }
+
+    return columns;
+  } catch (error) {
+    console.warn('Failed to fetch columns:', error);
+    return [];
+  }
+}
+
+/**
  * Get the current word being typed at cursor position
  */
 export function getCurrentWord(text: string, cursorPosition: number): { word: string; start: number } {
@@ -86,7 +201,27 @@ export function getCurrentWord(text: string, cursorPosition: number): { word: st
 }
 
 /**
- * Get autocomplete suggestions for Redshift schemas and tables
+ * Parse word to extract schema, table, and partial column
+ * Returns: { schema, table, columnPrefix } or null if not a column context
+ */
+function parseTableReference(word: string): { schema: string; table: string; columnPrefix: string } | null {
+  const parts = word.split('.');
+
+  // schema.table. or schema.table.col
+  if (parts.length >= 3) {
+    return {
+      schema: parts[0],
+      table: parts[1],
+      columnPrefix: parts.slice(2).join('.').toLowerCase(),
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Get autocomplete suggestions for Redshift schemas, tables, and columns
+ * Returns sync suggestions from cache; columns may need async fetch
  */
 export function getSuggestions(
   text: string,
@@ -100,11 +235,44 @@ export function getSuggestions(
 
   const { word } = getCurrentWord(text, cursorPosition);
 
-  // Need at least 2 characters to trigger
-  if (!word || word.length < 2) {
+  // Need at least 2 characters to trigger (or schema.table. pattern)
+  if (!word || (word.length < 2 && !word.includes('.'))) {
     return [];
   }
 
+  // Check if we're in column context (schema.table.)
+  const tableRef = parseTableReference(word);
+  if (tableRef) {
+    // Try to get columns from cache
+    const fullName = `${tableRef.schema}.${tableRef.table}`;
+    const columns = getCachedColumns(fullName);
+
+    if (columns) {
+      // Return column suggestions from cache
+      const suggestions: AutocompleteSuggestion[] = [];
+      const prefix = tableRef.columnPrefix;
+
+      for (const col of columns) {
+        if (!prefix || col.toLowerCase().startsWith(prefix)) {
+          suggestions.push({
+            value: col,
+            label: col,
+            type: "column",
+            detail: tableRef.table,
+          });
+        }
+        if (suggestions.length >= 15) break;
+      }
+
+      return suggestions;
+    }
+
+    // Columns not in cache - trigger async fetch (handled by component)
+    // Return empty to signal "loading" state
+    return [];
+  }
+
+  // Schema and table suggestions
   const searchTerm = word.toLowerCase();
   const schemas = loadSchemas();
   const suggestions: AutocompleteSuggestion[] = [];
@@ -150,4 +318,21 @@ export function getSuggestions(
   });
 
   return suggestions.slice(0, 10);
+}
+
+/**
+ * Check if word is in column context (schema.table.)
+ */
+export function isColumnContext(word: string): { schema: string; table: string } | null {
+  const parts = word.split('.');
+  if (parts.length >= 2 && parts[0] && parts[1]) {
+    // Verify this is a known table
+    const schemas = loadSchemas();
+    const fullName = `${parts[0]}.${parts[1]}`.toLowerCase();
+    const found = schemas.find(s => s.fullName.toLowerCase() === fullName);
+    if (found) {
+      return { schema: found.schema, table: found.table };
+    }
+  }
+  return null;
 }

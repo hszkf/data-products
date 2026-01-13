@@ -3,7 +3,7 @@
 import * as React from "react";
 import { cn } from "~/lib/utils";
 import { highlightSql } from "~/lib/sql-syntax";
-import { getSuggestions, getCurrentWord, type AutocompleteSuggestion } from "~/lib/sql-autocomplete";
+import { getSuggestions, getCurrentWord, isColumnContext, fetchTableColumns, type AutocompleteSuggestion } from "~/lib/sql-autocomplete";
 import { AutocompleteDropdown } from "./autocomplete-dropdown";
 import type { DatabaseType } from "./editor-panel";
 
@@ -56,31 +56,52 @@ export function CodeEditor({
     }
   }, []);
 
+  // Track pending column fetch to avoid duplicate requests
+  const pendingFetchRef = React.useRef<string | null>(null);
+
   // Update autocomplete suggestions
-  const updateAutocomplete = React.useCallback(() => {
+  const updateAutocomplete = React.useCallback(async () => {
     if (!textareaRef.current) return;
 
     const textarea = textareaRef.current;
     const cursorPos = textarea.selectionStart;
-    const newSuggestions = getSuggestions(value, cursorPos, colorScheme);
+    const { word } = getCurrentWord(value, cursorPos);
+
+    // Calculate position for dropdown (do this early)
+    const textBeforeCursor = value.substring(0, cursorPos);
+    const lines = textBeforeCursor.split("\n");
+    const currentLine = lines.length;
+    const currentColumn = lines[lines.length - 1].length;
+    const top = 12 + currentLine * 20;
+    const left = 44 + Math.min(currentColumn * 8, 300);
+
+    // Get sync suggestions first
+    let newSuggestions = getSuggestions(value, cursorPos, colorScheme);
+
+    // If no suggestions but we're in column context, try to fetch columns
+    if (newSuggestions.length === 0 && colorScheme === "redshift") {
+      const columnCtx = isColumnContext(word);
+      if (columnCtx) {
+        const fetchKey = `${columnCtx.schema}.${columnCtx.table}`;
+
+        // Avoid duplicate fetches
+        if (pendingFetchRef.current !== fetchKey) {
+          pendingFetchRef.current = fetchKey;
+
+          // Fetch columns async
+          await fetchTableColumns(columnCtx.schema, columnCtx.table);
+          pendingFetchRef.current = null;
+
+          // Re-get suggestions now that columns are cached
+          newSuggestions = getSuggestions(value, cursorPos, colorScheme);
+        }
+      }
+    }
 
     if (newSuggestions.length > 0) {
       setSuggestions(newSuggestions);
       setSelectedIndex(0);
       setShowAutocomplete(true);
-
-      // Calculate position for dropdown
-      const textBeforeCursor = value.substring(0, cursorPos);
-      const lines = textBeforeCursor.split("\n");
-      const currentLine = lines.length;
-      const currentColumn = lines[lines.length - 1].length;
-
-      // Position below the current line
-      // Line height is ~20px, padding is ~12px
-      const top = 12 + currentLine * 20;
-      // Account for line numbers width (~44px) and character width (~8px)
-      const left = 44 + Math.min(currentColumn * 8, 300);
-
       setAutocompletePosition({ top, left });
     } else {
       setShowAutocomplete(false);
