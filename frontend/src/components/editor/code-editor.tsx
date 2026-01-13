@@ -39,6 +39,8 @@ export function CodeEditor({
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const [showAutocomplete, setShowAutocomplete] = React.useState(false);
   const [autocompletePosition, setAutocompletePosition] = React.useState({ top: 0, left: 0 });
+  const shouldRetriggerRef = React.useRef(false);
+  const skipBlurCloseRef = React.useRef(false);
 
   const lineCount = React.useMemo(() => {
     return Math.max(value.split("\n").length, 1);
@@ -108,6 +110,15 @@ export function CodeEditor({
     }
   }, [value, colorScheme]);
 
+  // Re-trigger autocomplete after schema selection (when value updates)
+  React.useEffect(() => {
+    if (shouldRetriggerRef.current) {
+      shouldRetriggerRef.current = false;
+      // Small delay to ensure cursor is positioned correctly
+      setTimeout(updateAutocomplete, 50);
+    }
+  }, [value, updateAutocomplete]);
+
   // Handle selecting an autocomplete suggestion
   const handleAutocompleteSelect = React.useCallback((suggestion: AutocompleteSuggestion) => {
     if (!textareaRef.current) return;
@@ -118,6 +129,13 @@ export function CodeEditor({
 
     // Replace the current word with the suggestion
     const newValue = value.substring(0, start) + suggestion.value + value.substring(cursorPos);
+
+    // If schema was selected (ends with dot), mark to re-trigger autocomplete
+    if (suggestion.type === "schema" && suggestion.value.endsWith('.')) {
+      shouldRetriggerRef.current = true;
+      skipBlurCloseRef.current = true; // Prevent blur handler from closing dropdown
+    }
+
     onChange(newValue);
 
     // Move cursor to end of inserted text
@@ -125,19 +143,19 @@ export function CodeEditor({
     requestAnimationFrame(() => {
       textarea.selectionStart = textarea.selectionEnd = newCursorPos;
       textarea.focus();
-
-      // If schema was selected (ends with dot), re-trigger autocomplete to show tables
-      if (suggestion.type === "schema" && suggestion.value.endsWith('.')) {
-        setTimeout(updateAutocomplete, 50);
-      }
     });
 
     setShowAutocomplete(false);
-  }, [value, onChange, updateAutocomplete]);
+  }, [value, onChange]);
 
   // Close autocomplete on blur (with delay to allow click selection)
   const handleBlur = React.useCallback(() => {
     setTimeout(() => {
+      // Don't close if we're about to re-trigger (schema selection)
+      if (skipBlurCloseRef.current) {
+        skipBlurCloseRef.current = false;
+        return;
+      }
       setShowAutocomplete(false);
     }, 150);
   }, []);
