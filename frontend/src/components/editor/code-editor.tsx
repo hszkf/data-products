@@ -125,10 +125,15 @@ export function CodeEditor({
     requestAnimationFrame(() => {
       textarea.selectionStart = textarea.selectionEnd = newCursorPos;
       textarea.focus();
+
+      // If schema was selected (ends with dot), re-trigger autocomplete to show tables
+      if (suggestion.type === "schema" && suggestion.value.endsWith('.')) {
+        setTimeout(updateAutocomplete, 50);
+      }
     });
 
     setShowAutocomplete(false);
-  }, [value, onChange]);
+  }, [value, onChange, updateAutocomplete]);
 
   // Close autocomplete on blur (with delay to allow click selection)
   const handleBlur = React.useCallback(() => {
