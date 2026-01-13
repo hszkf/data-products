@@ -37,6 +37,7 @@ import {
   formatHistoryTimestamp,
   type QueryHistoryEntry,
 } from "~/lib/query-history";
+import { formatSql } from "~/lib/sql-formatter";
 
 export type DatabaseType = "redshift" | "sqlserver";
 
@@ -843,13 +844,24 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 w-7 p-0 rounded-md opacity-40 cursor-not-allowed"
-                  disabled
+                  className={cn(
+                    "h-7 w-7 p-0 rounded-md transition-all duration-150",
+                    "hover:bg-[var(--panel-tint)] hover:text-[var(--panel-primary)]",
+                    !query.trim() && "opacity-40 cursor-not-allowed"
+                  )}
+                  disabled={!query.trim()}
+                  onClick={() => {
+                    if (query.trim()) {
+                      const formatted = formatSql(query, type);
+                      setQuery(formatted);
+                      showToast("SQL formatted", "success");
+                    }
+                  }}
                 >
                   <Wand2 className="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Format SQL (Coming Soon)</TooltipContent>
+              <TooltipContent>Format SQL</TooltipContent>
             </Tooltip>
 
             <Tooltip>
