@@ -116,6 +116,40 @@ const generateTabId = () => `tab-${Date.now()}-${Math.random().toString(36).subs
 // LocalStorage keys
 const getStorageKey = (dbType: DatabaseType) => `sql-editor-tabs-${dbType}`;
 const getActiveTabKey = (dbType: DatabaseType) => `sql-editor-active-tab-${dbType}`;
+const getConnectionCacheKey = (dbType: DatabaseType) => `sql-connection-status-${dbType}`;
+
+// Connection cache TTL (5 minutes)
+const CONNECTION_CACHE_TTL = 5 * 60 * 1000;
+
+interface ConnectionCache {
+  connected: boolean;
+  timestamp: number;
+}
+
+function getCachedConnectionStatus(dbType: DatabaseType): boolean | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cached = localStorage.getItem(getConnectionCacheKey(dbType));
+    if (!cached) return null;
+    const { connected, timestamp }: ConnectionCache = JSON.parse(cached);
+    if (Date.now() - timestamp < CONNECTION_CACHE_TTL) {
+      return connected;
+    }
+    return null; // Cache expired
+  } catch {
+    return null;
+  }
+}
+
+function setCachedConnectionStatus(dbType: DatabaseType, connected: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const cache: ConnectionCache = { connected, timestamp: Date.now() };
+    localStorage.setItem(getConnectionCacheKey(dbType), JSON.stringify(cache));
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 // Persistent tab data (what we save to localStorage)
 interface PersistedTab {
@@ -299,9 +333,15 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
     );
   }, []);
 
-  // Check connection status on mount only
+  // Check connection status on mount - use cache first, then refresh in background
   React.useEffect(() => {
     let mounted = true;
+
+    // Check cache first for instant UI
+    const cachedStatus = getCachedConnectionStatus(type);
+    if (cachedStatus !== null) {
+      setIsConnected(cachedStatus);
+    }
 
     const checkConnectionStatus = async () => {
       try {
@@ -309,13 +349,25 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
         if (!mounted) return;
         const isHealthy = health.status === "connected" && health.connected === true;
         setIsConnected(isHealthy);
+        setCachedConnectionStatus(type, isHealthy);
       } catch (error) {
         if (!mounted) return;
         setIsConnected(false);
+        setCachedConnectionStatus(type, false);
       }
     };
 
-    checkConnectionStatus();
+    // Only check if no cache or cache is stale
+    if (cachedStatus === null) {
+      checkConnectionStatus();
+    } else {
+      // Refresh in background after a short delay
+      const timer = setTimeout(checkConnectionStatus, 2000);
+      return () => {
+        mounted = false;
+        clearTimeout(timer);
+      };
+    }
 
     return () => {
       mounted = false;
@@ -493,6 +545,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
 
         if (isConnectionError) {
           setIsConnected(false);
+          setCachedConnectionStatus(type, false);
         }
 
         // Parse error to extract line number
