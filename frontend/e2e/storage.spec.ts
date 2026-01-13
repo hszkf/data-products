@@ -309,14 +309,16 @@ test.describe('Storage Page Load & Navigation', () => {
 
   test('should display storage page with team workspaces', async ({ page }) => {
     await goToStorage(page);
-    
-    // Check page title/header
-    await expect(page.getByText('S3 Storage')).toBeVisible();
-    await expect(page.getByText('Team Workspaces')).toBeVisible();
-    
-    // Check team sections exist (use headings for main content)
-    await expect(page.getByRole('heading', { name: 'Data Science' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Business Intelligence' })).toBeVisible();
+
+    // Check page title/header (in AppHeader)
+    await expect(page.getByRole('link', { name: 'S3 Storage' })).toBeVisible();
+
+    // Check Team Workspaces heading in main content
+    await expect(page.getByRole('heading', { name: 'Team Workspaces' })).toBeVisible();
+
+    // Check team sections exist
+    await expect(page.getByText('Data Science').first()).toBeVisible();
+    await expect(page.getByText('Business Intelligence').first()).toBeVisible();
   });
 
   test('should show connection status indicator', async ({ page }) => {

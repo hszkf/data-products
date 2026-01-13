@@ -7,7 +7,7 @@ export const Route = createFileRoute('/storage')({
 import { useState, useRef, useCallback, useSyncExternalStore } from "react";
 import { Link } from "@tanstack/react-router";
 import { ThemeProvider } from "~/lib/theme-context";
-import { StudioNav } from "~/components/studio-nav";
+import { AppHeader } from "~/components/app-header";
 import { ToastProvider, useToast } from "~/components/ui/toast-provider";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "~/components/ui/tooltip";
 import FilePreviewModal from "~/components/file-preview-modal";
@@ -660,8 +660,12 @@ function StoragePageContent() {
       />
 
       {/* Top Navigation Bar */}
-      <div className="relative z-20 flex-shrink-0 px-6 py-3 bg-[#0d0d14]/80 backdrop-blur-xl border-b border-white/[0.06]">
-        <StudioNav />
+      <div className="relative z-20 flex-shrink-0">
+        <AppHeader
+          title="S3 Storage"
+          icon={HardDrive}
+          iconClassName="bg-gradient-to-br from-emerald-500 to-teal-600"
+        />
       </div>
 
       {/* Main Layout */}
@@ -669,19 +673,16 @@ function StoragePageContent() {
         {/* Sidebar - Folder Tree */}
         <aside className="w-56 flex-shrink-0 flex flex-col bg-[#0d0d14] border-r border-white/[0.06]">
           {/* Sidebar Header */}
-          <div className="px-3 py-3 border-b border-white/[0.06]">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center">
-                <Cloud className="w-4 h-4 text-emerald-400" />
-              </div>
-              <div>
-                <h1 className="text-xs font-semibold text-white tracking-tight">S3 Storage</h1>
-                <div className="flex items-center gap-1">
-                  <ConnectionPulse connected={isConnected} />
-                  <span className="text-[10px] text-white/50 font-mono">
-                    {isConnected ? "Connected" : "Offline"}
-                  </span>
-                </div>
+          <div className="px-3 py-2.5 border-b border-white/[0.06]">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-white/70 uppercase tracking-wider">
+                Workspaces
+              </span>
+              <div className="flex items-center gap-1">
+                <ConnectionPulse connected={isConnected} />
+                <span className="text-[10px] text-white/50 font-mono">
+                  {isConnected ? "Connected" : "Offline"}
+                </span>
               </div>
             </div>
           </div>

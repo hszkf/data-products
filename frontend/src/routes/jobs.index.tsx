@@ -33,7 +33,8 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react";
-import { StudioNav } from "~/components/studio-nav";
+import { AppHeader } from "~/components/app-header";
+import { Calendar as CalendarIcon } from "lucide-react";
 
 export const Route = createFileRoute('/jobs/')({
   component: JobsIndexPage,
@@ -500,82 +501,76 @@ function JobsHeader() {
   const { isLoading, isPolling, loadJobs, syncAllSchedules, startPolling, stopPolling } = useJobs();
 
   return (
-    <header className="bg-surface-container/80 backdrop-blur-sm border-b border-outline-variant/50 sticky top-0 z-20">
-      {/* Navigation Bar */}
-      <div className="px-6 py-3 border-b border-outline-variant/30">
-        <StudioNav />
-      </div>
+    <div className="sticky top-0 z-20">
+      {/* App Header with Navigation */}
+      <AppHeader
+        title="Job Scheduler"
+        icon={CalendarIcon}
+        iconClassName="bg-gradient-to-br from-emerald-500 to-cyan-600"
+      />
 
-      {/* Page Header */}
-      <div className="flex items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-            <Calendar className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold tracking-tight text-on-surface">
-              Job Scheduler
-            </h1>
-            <p className="text-xs text-on-surface-variant font-mono">
-              Automated workflows & functions
-              {isPolling && (
-                <span className="ml-2 text-cyan-400/70">
-                  <span className="inline-block w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse mr-1" />
-                  live
-                </span>
-              )}
-            </p>
-          </div>
+      {/* Page Actions Bar */}
+      <div className="flex items-center justify-between px-4 py-2 bg-surface-container/60 backdrop-blur-sm border-b border-outline-variant/30">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-on-surface-variant font-mono">
+            Automated workflows & functions
+            {isPolling && (
+              <span className="ml-2 text-cyan-400/70">
+                <span className="inline-block w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse mr-1" />
+                live
+              </span>
+            )}
+          </span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {/* Sync Schedules button */}
           <button
             onClick={syncAllSchedules}
             title="Sync schedules with server"
-            className="p-2.5 rounded-lg text-on-surface-variant hover:text-amber-400 hover:bg-amber-500/10 transition-all"
+            className="p-2 rounded-lg text-on-surface-variant hover:text-amber-400 hover:bg-amber-500/10 transition-all"
           >
-            <Calendar className="w-5 h-5" />
+            <Calendar className="w-4 h-4" />
           </button>
 
           {/* Toggle Polling */}
           <button
             onClick={() => isPolling ? stopPolling() : startPolling()}
             title={isPolling ? "Disable auto-refresh" : "Enable auto-refresh"}
-            className={`p-2.5 rounded-lg transition-all ${
+            className={`p-2 rounded-lg transition-all ${
               isPolling
                 ? "text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20"
                 : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
             }`}
           >
-            <Activity className="w-5 h-5" />
+            <Activity className="w-4 h-4" />
           </button>
 
           {/* Refresh */}
           <button
             onClick={() => loadJobs()}
             disabled={isLoading}
-            className="p-2.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-all disabled:opacity-50"
+            className="p-2 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-all disabled:opacity-50"
           >
-            <RefreshCw className={`w-5 h-5 ${isLoading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
           </button>
 
           <Link to="/jobs/new">
             <button className="
-              inline-flex items-center gap-2 px-4 py-2.5
+              inline-flex items-center gap-1.5 px-3 py-1.5
               bg-surface-container-high text-on-surface
               border border-outline-variant/50
-              rounded-xl font-semibold text-sm
+              rounded-lg font-medium text-xs
               hover:bg-surface-container-highest hover:border-outline/50
               transition-all duration-200 active:scale-[0.98]
             ">
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
               New Job
             </button>
           </Link>
         </div>
       </div>
-    </header>
+    </div>
   );
 }
 
