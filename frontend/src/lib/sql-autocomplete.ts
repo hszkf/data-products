@@ -307,21 +307,23 @@ export function getSuggestions(
   const seenSchemas = new Set<string>();
   const seenTables = new Set<string>();
 
-  // Check if user typed "schema." pattern (e.g., "public.")
+  // Check if user typed "schema." pattern (e.g., "public." or "public.cust")
   const dotIndex = searchTerm.indexOf('.');
   const isSchemaTablePattern = dotIndex > 0;
-  const schemaPrefix = isSchemaTablePattern ? searchTerm.substring(0, dotIndex) : '';
-  const tablePrefix = isSchemaTablePattern ? searchTerm.substring(dotIndex + 1) : '';
 
-  for (const item of schemas) {
-    const schemaLower = item.schema.toLowerCase();
-    const tableLower = item.table.toLowerCase();
-    const fullLower = item.fullName.toLowerCase();
+  if (isSchemaTablePattern) {
+    // User typed "schema." or "schema.partial" - show TABLES in that schema
+    const schemaPrefix = searchTerm.substring(0, dotIndex);
+    const tablePrefix = searchTerm.substring(dotIndex + 1);
 
-    if (isSchemaTablePattern) {
-      // User typed "schema." or "schema.partial" - show tables in that schema
+    for (const item of schemas) {
+      const schemaLower = item.schema.toLowerCase();
+      const tableLower = item.table.toLowerCase();
+      const fullLower = item.fullName.toLowerCase();
+
+      // Only show tables from the specified schema
       if (schemaLower === schemaPrefix) {
-        // Match tables in this schema
+        // Match tables: show all if no prefix, or filter by prefix
         if (!tablePrefix || tableLower.startsWith(tablePrefix)) {
           if (!seenTables.has(fullLower)) {
             seenTables.add(fullLower);
@@ -334,47 +336,32 @@ export function getSuggestions(
           }
         }
       }
-    } else {
-      // User typed plain text - match schemas and tables
+
+      if (suggestions.length >= 20) break;
+    }
+  } else {
+    // User typed plain text (no dot) - show SCHEMAS only
+    for (const item of schemas) {
+      const schemaLower = item.schema.toLowerCase();
+
       // Match schema name
       if (schemaLower.startsWith(searchTerm) && !seenSchemas.has(item.schema)) {
         seenSchemas.add(item.schema);
         suggestions.push({
-          value: item.schema + '.', // Append dot for easier continuation
+          value: item.schema + '.', // Append dot so user can continue typing table
           label: item.schema,
           type: "schema",
         });
       }
 
-      // Match table name
-      if (tableLower.startsWith(searchTerm)) {
-        if (!seenTables.has(fullLower)) {
-          seenTables.add(fullLower);
-          suggestions.push({
-            value: item.fullName,
-            label: item.table,
-            type: "table",
-            detail: item.schema,
-          });
-        }
-      }
-    }
-
-    // Limit results for performance
-    if (suggestions.length >= 15) {
-      break;
+      if (suggestions.length >= 15) break;
     }
   }
 
-  // Sort: schemas first, then tables alphabetically
-  suggestions.sort((a, b) => {
-    if (a.type !== b.type) {
-      return a.type === "schema" ? -1 : 1;
-    }
-    return a.label.localeCompare(b.label);
-  });
+  // Sort alphabetically
+  suggestions.sort((a, b) => a.label.localeCompare(b.label));
 
-  return suggestions.slice(0, 12);
+  return suggestions.slice(0, 15);
 }
 
 /**
