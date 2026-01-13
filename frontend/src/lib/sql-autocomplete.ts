@@ -305,34 +305,63 @@ export function getSuggestions(
   const schemas = loadSchemas();
   const suggestions: AutocompleteSuggestion[] = [];
   const seenSchemas = new Set<string>();
+  const seenTables = new Set<string>();
+
+  // Check if user typed "schema." pattern (e.g., "public.")
+  const dotIndex = searchTerm.indexOf('.');
+  const isSchemaTablePattern = dotIndex > 0;
+  const schemaPrefix = isSchemaTablePattern ? searchTerm.substring(0, dotIndex) : '';
+  const tablePrefix = isSchemaTablePattern ? searchTerm.substring(dotIndex + 1) : '';
 
   for (const item of schemas) {
     const schemaLower = item.schema.toLowerCase();
     const tableLower = item.table.toLowerCase();
     const fullLower = item.fullName.toLowerCase();
 
-    // Match schema name
-    if (schemaLower.startsWith(searchTerm) && !seenSchemas.has(item.schema)) {
-      seenSchemas.add(item.schema);
-      suggestions.push({
-        value: item.schema,
-        label: item.schema,
-        type: "schema",
-      });
-    }
+    if (isSchemaTablePattern) {
+      // User typed "schema." or "schema.partial" - show tables in that schema
+      if (schemaLower === schemaPrefix) {
+        // Match tables in this schema
+        if (!tablePrefix || tableLower.startsWith(tablePrefix)) {
+          if (!seenTables.has(fullLower)) {
+            seenTables.add(fullLower);
+            suggestions.push({
+              value: item.fullName,
+              label: item.table,
+              type: "table",
+              detail: item.schema,
+            });
+          }
+        }
+      }
+    } else {
+      // User typed plain text - match schemas and tables
+      // Match schema name
+      if (schemaLower.startsWith(searchTerm) && !seenSchemas.has(item.schema)) {
+        seenSchemas.add(item.schema);
+        suggestions.push({
+          value: item.schema + '.', // Append dot for easier continuation
+          label: item.schema,
+          type: "schema",
+        });
+      }
 
-    // Match table name or full name
-    if (tableLower.startsWith(searchTerm) || fullLower.includes(searchTerm)) {
-      suggestions.push({
-        value: item.fullName,
-        label: item.table,
-        type: "table",
-        detail: item.schema,
-      });
+      // Match table name
+      if (tableLower.startsWith(searchTerm)) {
+        if (!seenTables.has(fullLower)) {
+          seenTables.add(fullLower);
+          suggestions.push({
+            value: item.fullName,
+            label: item.table,
+            type: "table",
+            detail: item.schema,
+          });
+        }
+      }
     }
 
     // Limit results for performance
-    if (suggestions.length >= 12) {
+    if (suggestions.length >= 15) {
       break;
     }
   }
@@ -345,7 +374,7 @@ export function getSuggestions(
     return a.label.localeCompare(b.label);
   });
 
-  return suggestions.slice(0, 10);
+  return suggestions.slice(0, 12);
 }
 
 /**
