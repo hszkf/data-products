@@ -1,7 +1,7 @@
 /**
- * SQL Autocomplete - Redshift Schema, Table & Column Names
+ * SQL Autocomplete - Redshift Schema, Table, Column & Keywords
  *
- * Fast autocomplete for Redshift schemas, tables, and columns from cache.
+ * Fast autocomplete for Redshift schemas, tables, columns, and SQL keywords.
  * Columns are fetched on-demand when user types "schema.table." and cached locally.
  */
 
@@ -10,9 +10,37 @@ import { executeQuery } from "./api";
 export interface AutocompleteSuggestion {
   value: string;
   label: string;
-  type: "schema" | "table" | "column";
+  type: "schema" | "table" | "column" | "keyword";
   detail?: string;
 }
+
+// SQL Keywords for autocomplete
+const SQL_KEYWORDS = [
+  // DML
+  'SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'NOT', 'IN', 'EXISTS',
+  'INSERT', 'INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE',
+  // Joins
+  'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN', 'CROSS JOIN',
+  'LEFT OUTER JOIN', 'RIGHT OUTER JOIN', 'FULL OUTER JOIN', 'ON',
+  // Clauses
+  'GROUP BY', 'ORDER BY', 'HAVING', 'LIMIT', 'OFFSET', 'DISTINCT',
+  'AS', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END',
+  // Operators
+  'BETWEEN', 'LIKE', 'ILIKE', 'IS NULL', 'IS NOT NULL',
+  // Aggregates
+  'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'COALESCE', 'NULLIF',
+  // Window functions
+  'OVER', 'PARTITION BY', 'ROW_NUMBER', 'RANK', 'DENSE_RANK', 'LAG', 'LEAD',
+  // Set operations
+  'UNION', 'UNION ALL', 'INTERSECT', 'EXCEPT',
+  // DDL
+  'CREATE', 'TABLE', 'VIEW', 'INDEX', 'DROP', 'ALTER', 'TRUNCATE',
+  // CTE
+  'WITH', 'AS',
+  // Other
+  'CAST', 'CONVERT', 'EXTRACT', 'DATE_TRUNC', 'TO_CHAR', 'TO_DATE',
+  'GETDATE', 'CURRENT_DATE', 'CURRENT_TIMESTAMP', 'DATEADD', 'DATEDIFF',
+];
 
 // Schema cache key (shared with schema-browser)
 const SCHEMA_CACHE_KEY = 'sql-schema-cache';
@@ -340,11 +368,25 @@ export function getSuggestions(
       if (suggestions.length >= 20) break;
     }
   } else {
-    // User typed plain text (no dot) - show SCHEMAS only
+    // User typed plain text (no dot) - show KEYWORDS and SCHEMAS
+    const searchUpper = searchTerm.toUpperCase();
+
+    // Match SQL keywords first
+    for (const keyword of SQL_KEYWORDS) {
+      if (keyword.startsWith(searchUpper)) {
+        suggestions.push({
+          value: keyword + ' ',
+          label: keyword,
+          type: "keyword",
+        });
+      }
+      if (suggestions.length >= 8) break; // Limit keywords
+    }
+
+    // Then match schema names
     for (const item of schemas) {
       const schemaLower = item.schema.toLowerCase();
 
-      // Match schema name
       if (schemaLower.startsWith(searchTerm) && !seenSchemas.has(item.schema)) {
         seenSchemas.add(item.schema);
         suggestions.push({
@@ -358,10 +400,16 @@ export function getSuggestions(
     }
   }
 
-  // Sort alphabetically
-  suggestions.sort((a, b) => a.label.localeCompare(b.label));
+  // Sort: keywords first, then schemas, alphabetically within each group
+  suggestions.sort((a, b) => {
+    if (a.type !== b.type) {
+      if (a.type === "keyword") return -1;
+      if (b.type === "keyword") return 1;
+    }
+    return a.label.localeCompare(b.label);
+  });
 
-  return suggestions.slice(0, 15);
+  return suggestions.slice(0, 12);
 }
 
 /**
