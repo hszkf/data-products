@@ -9,7 +9,7 @@
 import * as React from "react";
 import { executeQuery as apiExecuteQuery } from "./api";
 
-export type DatabaseType = "redshift" | "sqlserver";
+export type DatabaseType = "redshift" | "sqlserver" | "sqlserver-bi-backup";
 
 export interface QueryResult {
   columns: string[];
