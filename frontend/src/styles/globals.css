@@ -5,24 +5,24 @@
 @layer base {
   /* CSS Variables for Theme Switching */
   :root {
-    /* Light mode colours (RGB for opacity support) */
-    --surface: 254 251 255;
-    --surface-container: 243 239 244;
-    --surface-container-high: 237 233 238;
-    --surface-container-highest: 232 228 233;
-    --on-surface: 28 27 31;
-    --on-surface-variant: 71 70 79;
-    --outline: 119 118 128;
-    --outline-variant: 200 197 208;
+    /* Light mode colours (RGB for opacity support) - neutral grays */
+    --surface: 255 255 255;
+    --surface-container: 250 250 250;
+    --surface-container-high: 245 245 245;
+    --surface-container-highest: 238 238 238;
+    --on-surface: 23 23 23;
+    --on-surface-variant: 82 82 82;
+    --outline: 120 120 120;
+    --outline-variant: 212 212 212;
 
-    /* Syntax highlighting - light mode */
-    --syntax-keyword: 157 23 77;
-    --syntax-function: 202 138 4;
-    --syntax-string: 220 38 38;
-    --syntax-number: 22 163 74;
-    --syntax-comment: 115 115 115;
-    --syntax-operator: 64 64 64;
-    --syntax-table: 8 145 178;
+    /* Syntax highlighting - light mode (vibrant, visible) */
+    --syntax-keyword: 0 95 204;
+    --syntax-function: 175 95 0;
+    --syntax-string: 163 21 21;
+    --syntax-number: 9 134 88;
+    --syntax-comment: 90 90 90;
+    --syntax-operator: 38 38 38;
+    --syntax-table: 0 128 128;
   }
 
   .dark {
@@ -120,31 +120,31 @@
   }
 
   .redshift-theme .sql-keyword {
-    @apply text-[#ff9900] font-bold;
+    @apply text-[#c76a00] dark:text-[#ff9900] font-bold;
   }
 
   .redshift-theme .sql-function {
-    @apply text-[#ff9900];
+    @apply text-[#c76a00] dark:text-[#ff9900];
   }
 
   .redshift-theme .sql-string {
-    @apply text-[#ce9178];
+    @apply text-[#a31515] dark:text-[#ce9178];
   }
 
   .redshift-theme .sql-number {
-    @apply text-[#b5cea8];
+    @apply text-[#098658] dark:text-[#b5cea8];
   }
 
   .redshift-theme .sql-comment {
-    @apply text-[#989898] italic;
+    @apply text-[#5a5a5a] dark:text-[#6a9955] italic;
   }
 
   .redshift-theme .sql-operator {
-    @apply text-[#d4d4d4];
+    @apply text-[#383838] dark:text-[#d4d4d4];
   }
 
   .redshift-theme .sql-table {
-    @apply text-[#4ec9b0];
+    @apply text-[#008080] dark:text-[#4ec9b0];
   }
 
   /* SQL Syntax Colors - SQL Server Theme (Blue accent) */
@@ -153,31 +153,31 @@
   }
 
   .sqlserver-theme .sql-keyword {
-    @apply text-[#0078d4] font-bold;
+    @apply text-[#005fb8] dark:text-[#569cd6] font-bold;
   }
 
   .sqlserver-theme .sql-function {
-    @apply text-[#0078d4];
+    @apply text-[#005fb8] dark:text-[#569cd6];
   }
 
   .sqlserver-theme .sql-string {
-    @apply text-[#ce9178];
+    @apply text-[#a31515] dark:text-[#ce9178];
   }
 
   .sqlserver-theme .sql-number {
-    @apply text-[#b5cea8];
+    @apply text-[#098658] dark:text-[#b5cea8];
   }
 
   .sqlserver-theme .sql-comment {
-    @apply text-[#989898] italic;
+    @apply text-[#5a5a5a] dark:text-[#6a9955] italic;
   }
 
   .sqlserver-theme .sql-operator {
-    @apply text-[#d4d4d4];
+    @apply text-[#383838] dark:text-[#d4d4d4];
   }
 
   .sqlserver-theme .sql-table {
-    @apply text-[#4ec9b0];
+    @apply text-[#008080] dark:text-[#4ec9b0];
   }
 
   /* Line numbers */
