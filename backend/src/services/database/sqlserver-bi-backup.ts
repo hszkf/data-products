@@ -1,6 +1,7 @@
 import sql from 'mssql';
 
 // SQL Server BI_Backup connection configuration
+// Use explicit ConnectionPool instead of global sql.connect() to avoid sharing with Staging
 const config: sql.config = {
   user: process.env.SQLSERVER_BI_USER || process.env.SQLSERVER_USER || 'ssis_admin',
   password: process.env.SQLSERVER_BI_PASSWORD || process.env.SQLSERVER_PASSWORD || 'P@55word',
@@ -22,12 +23,15 @@ const config: sql.config = {
   connectionTimeout: 60000,
 };
 
+// Use explicit ConnectionPool to have separate pool from Staging
 let pool: sql.ConnectionPool | null = null;
 
 export async function initSqlServerBiBackup(): Promise<void> {
   try {
-    pool = await sql.connect(config);
-    console.log('✅ SQL Server BI_Backup connected');
+    // Create explicit pool instead of using global sql.connect()
+    pool = new sql.ConnectionPool(config);
+    await pool.connect();
+    console.log(`✅ SQL Server BI_Backup connected (database: ${config.database})`);
   } catch (error) {
     console.error('❌ SQL Server BI_Backup connection failed:', error);
     throw error;
@@ -44,7 +48,7 @@ export async function closeSqlServerBiBackup(): Promise<void> {
 
 export async function getPool(): Promise<sql.ConnectionPool> {
   if (!pool || !pool.connected) {
-    console.log('🔄 Reconnecting to SQL Server BI_Backup...');
+    console.log(`🔄 Reconnecting to SQL Server BI_Backup (database: ${config.database})...`);
     await initSqlServerBiBackup();
   }
   return pool!;
