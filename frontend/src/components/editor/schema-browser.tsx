@@ -74,7 +74,7 @@ function saveSchemaToCache(dbType: DatabaseType, schemas: Record<string, string[
 
 interface SchemaBrowserProps {
   type: DatabaseType;
-  onTableSelect?: (tableName: string, database: string) => void;
+  onTableSelect?: (tableName: string, database: string, dbType?: DatabaseType) => void;
   refreshKey?: number;
 }
 
@@ -82,44 +82,83 @@ interface SchemaData {
   [database: string]: string[];
 }
 
+// For SQL Server, we show multiple databases
+interface MultiDbSchemaData {
+  [dbName: string]: SchemaData;
+}
+
 export function SchemaBrowser({ type, onTableSelect, refreshKey = 0 }: SchemaBrowserProps) {
   const [schemas, setSchemas] = React.useState<SchemaData>({});
+  const [multiDbSchemas, setMultiDbSchemas] = React.useState<MultiDbSchemaData>({});
   const [expandedDbs, setExpandedDbs] = React.useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const { saveTable } = useMerge();
   const { showToast } = useToast();
 
+  // For SQL Server, we fetch both Staging and BI_Backup
+  const isSqlServer = type === "sqlserver" || type === "sqlserver-bi-backup";
+
   const fetchSchemas = React.useCallback(async (refresh: boolean = false) => {
     setIsLoading(true);
     setError(null);
 
-    // Try to load from cache first (unless refresh is requested)
-    if (!refresh) {
-      const cached = getSchemaFromCache(type);
-      if (cached && Object.keys(cached).length > 0) {
-        setSchemas(cached);
-        setExpandedDbs(new Set());
-        setIsLoading(false);
-        return;
-      }
-    }
+    if (isSqlServer) {
+      // Fetch both SQL Server databases
+      try {
+        const [stagingResult, biBackupResult] = await Promise.all([
+          getSchemas("sqlserver", refresh),
+          getSchemas("sqlserver-bi-backup", refresh),
+        ]);
 
-    try {
-      const result = await getSchemas(type, refresh);
-      const fetchedSchemas = result.schemas || {};
-      setSchemas(fetchedSchemas);
-      setExpandedDbs(new Set());
-      // Save to shared cache
-      if (Object.keys(fetchedSchemas).length > 0) {
-        saveSchemaToCache(type, fetchedSchemas);
+        const multiDb: MultiDbSchemaData = {};
+
+        if (stagingResult.schemas && Object.keys(stagingResult.schemas).length > 0) {
+          multiDb["Staging"] = stagingResult.schemas;
+        }
+        if (biBackupResult.schemas && Object.keys(biBackupResult.schemas).length > 0) {
+          multiDb["BI_Backup"] = biBackupResult.schemas;
+        }
+
+        setMultiDbSchemas(multiDb);
+        setSchemas({});
+        setExpandedDbs(new Set());
+      } catch (err) {
+        setMultiDbSchemas({});
+        setSchemas({});
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      setSchemas({});
-    } finally {
-      setIsLoading(false);
+    } else {
+      // Redshift - single database
+      if (!refresh) {
+        const cached = getSchemaFromCache(type);
+        if (cached && Object.keys(cached).length > 0) {
+          setSchemas(cached);
+          setMultiDbSchemas({});
+          setExpandedDbs(new Set());
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      try {
+        const result = await getSchemas(type, refresh);
+        const fetchedSchemas = result.schemas || {};
+        setSchemas(fetchedSchemas);
+        setMultiDbSchemas({});
+        setExpandedDbs(new Set());
+        if (Object.keys(fetchedSchemas).length > 0) {
+          saveSchemaToCache(type, fetchedSchemas);
+        }
+      } catch (err) {
+        setSchemas({});
+        setMultiDbSchemas({});
+      } finally {
+        setIsLoading(false);
+      }
     }
-  }, [type]);
+  }, [type, isSqlServer]);
 
   // Fetch on mount and when refreshKey changes
   React.useEffect(() => {
@@ -138,10 +177,20 @@ export function SchemaBrowser({ type, onTableSelect, refreshKey = 0 }: SchemaBro
     });
   };
 
-  const handleTableClick = (tableName: string, database: string) => {
+  const handleTableClick = (tableName: string, schema: string, dbType?: DatabaseType) => {
     if (onTableSelect) {
-      onTableSelect(tableName, database);
+      onTableSelect(tableName, schema, dbType);
     }
+  };
+
+  // Calculate total table count
+  const getTotalTableCount = () => {
+    if (isSqlServer && Object.keys(multiDbSchemas).length > 0) {
+      return Object.values(multiDbSchemas).reduce((total, dbSchemas) => {
+        return total + Object.values(dbSchemas).flat().length;
+      }, 0);
+    }
+    return Object.values(schemas).flat().length;
   };
 
   // Handle file upload from parent via custom event
@@ -223,6 +272,138 @@ export function SchemaBrowser({ type, onTableSelect, refreshKey = 0 }: SchemaBro
     };
   }, [processFile]);
 
+  // Render single database schemas (Redshift)
+  const renderSingleDbSchemas = () => (
+    Object.entries(schemas).map(([schemaName, tables]) => (
+      <div key={schemaName}>
+        <button
+          onClick={() => toggleDatabase(schemaName)}
+          className={cn(
+            "w-full flex items-center gap-1 px-3 py-1.5",
+            "hover:bg-surface-container-high/50 transition-colors",
+            "text-left"
+          )}
+        >
+          {expandedDbs.has(schemaName) ? (
+            <ChevronDown className="w-3 h-3 text-on-surface-variant flex-shrink-0" />
+          ) : (
+            <ChevronRight className="w-3 h-3 text-on-surface-variant flex-shrink-0" />
+          )}
+          <span className="text-xs text-on-surface truncate">{schemaName}</span>
+          <span className="text-[10px] text-on-surface-variant ml-auto pr-2">{tables.length}</span>
+        </button>
+
+        {expandedDbs.has(schemaName) && (
+          <div className="ml-4">
+            {tables.map((table) => (
+              <button
+                key={`${schemaName}.${table}`}
+                onClick={() => handleTableClick(table, schemaName)}
+                className={cn(
+                  "w-full flex items-center gap-1.5 px-3 py-1",
+                  "hover:bg-surface-container-high/50 transition-colors",
+                  "text-left group"
+                )}
+              >
+                <Table className="w-3 h-3 text-on-surface-variant flex-shrink-0" />
+                <span className="text-xs text-on-surface-variant group-hover:text-on-surface truncate">
+                  {table}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    ))
+  );
+
+  // Render multi-database schemas (SQL Server: Staging + BI_Backup)
+  const renderMultiDbSchemas = () => (
+    Object.entries(multiDbSchemas).map(([dbName, dbSchemas]) => {
+      const dbKey = `db-${dbName}`;
+      const dbType: DatabaseType = dbName === "Staging" ? "sqlserver" : "sqlserver-bi-backup";
+      const totalTables = Object.values(dbSchemas).flat().length;
+
+      return (
+        <div key={dbName}>
+          {/* Database level */}
+          <button
+            onClick={() => toggleDatabase(dbKey)}
+            className={cn(
+              "w-full flex items-center gap-1 px-3 py-1.5",
+              "hover:bg-surface-container-high/50 transition-colors",
+              "text-left"
+            )}
+          >
+            {expandedDbs.has(dbKey) ? (
+              <ChevronDown className="w-3 h-3 text-on-surface-variant flex-shrink-0" />
+            ) : (
+              <ChevronRight className="w-3 h-3 text-on-surface-variant flex-shrink-0" />
+            )}
+            <Database className="w-3 h-3 text-sqlserver flex-shrink-0" />
+            <span className="text-xs text-on-surface font-medium truncate">{dbName}</span>
+            <span className="text-[10px] text-on-surface-variant ml-auto pr-2">{totalTables}</span>
+          </button>
+
+          {/* Schema level within database */}
+          {expandedDbs.has(dbKey) && (
+            <div className="ml-3">
+              {Object.entries(dbSchemas).map(([schemaName, tables]) => {
+                const schemaKey = `${dbName}.${schemaName}`;
+                return (
+                  <div key={schemaKey}>
+                    <button
+                      onClick={() => toggleDatabase(schemaKey)}
+                      className={cn(
+                        "w-full flex items-center gap-1 px-3 py-1",
+                        "hover:bg-surface-container-high/50 transition-colors",
+                        "text-left"
+                      )}
+                    >
+                      {expandedDbs.has(schemaKey) ? (
+                        <ChevronDown className="w-3 h-3 text-on-surface-variant flex-shrink-0" />
+                      ) : (
+                        <ChevronRight className="w-3 h-3 text-on-surface-variant flex-shrink-0" />
+                      )}
+                      <span className="text-xs text-on-surface truncate">{schemaName}</span>
+                      <span className="text-[10px] text-on-surface-variant ml-auto pr-2">{tables.length}</span>
+                    </button>
+
+                    {/* Tables within schema */}
+                    {expandedDbs.has(schemaKey) && (
+                      <div className="ml-4">
+                        {tables.map((table) => (
+                          <button
+                            key={`${dbName}.${schemaName}.${table}`}
+                            onClick={() => handleTableClick(table, schemaName, dbType)}
+                            className={cn(
+                              "w-full flex items-center gap-1.5 px-3 py-1",
+                              "hover:bg-surface-container-high/50 transition-colors",
+                              "text-left group"
+                            )}
+                          >
+                            <Table className="w-3 h-3 text-on-surface-variant flex-shrink-0" />
+                            <span className="text-xs text-on-surface-variant group-hover:text-on-surface truncate">
+                              {table}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    })
+  );
+
+  const hasSchemas = isSqlServer
+    ? Object.keys(multiDbSchemas).length > 0
+    : Object.keys(schemas).length > 0;
+
   return (
     <div className="flex flex-col h-full bg-transparent overflow-hidden">
       {/* Content - Scrollable area */}
@@ -235,7 +416,7 @@ export function SchemaBrowser({ type, onTableSelect, refreshKey = 0 }: SchemaBro
           )} />
           <span className="text-xs font-medium text-on-surface">Tables</span>
           <span className="text-[10px] text-on-surface-variant ml-auto">
-            {isLoading ? "..." : Object.values(schemas).flat().length}
+            {isLoading ? "..." : getTotalTableCount()}
           </span>
         </div>
 
@@ -248,50 +429,12 @@ export function SchemaBrowser({ type, onTableSelect, refreshKey = 0 }: SchemaBro
             </div>
           ) : error ? (
             <div className="px-3 py-2 text-xs text-red-400">{error}</div>
-          ) : Object.keys(schemas).length === 0 ? (
+          ) : !hasSchemas ? (
             <div className="px-3 py-2 text-xs text-on-surface-variant">No tables found</div>
+          ) : isSqlServer ? (
+            renderMultiDbSchemas()
           ) : (
-            Object.entries(schemas).map(([database, tables]) => (
-              <div key={database}>
-                <button
-                  onClick={() => toggleDatabase(database)}
-                  className={cn(
-                    "w-full flex items-center gap-1 px-3 py-1.5",
-                    "hover:bg-surface-container-high/50 transition-colors",
-                    "text-left"
-                  )}
-                >
-                  {expandedDbs.has(database) ? (
-                    <ChevronDown className="w-3 h-3 text-on-surface-variant flex-shrink-0" />
-                  ) : (
-                    <ChevronRight className="w-3 h-3 text-on-surface-variant flex-shrink-0" />
-                  )}
-                  <span className="text-xs text-on-surface truncate">{database}</span>
-                  <span className="text-[10px] text-on-surface-variant ml-auto pr-2">{tables.length}</span>
-                </button>
-
-                {expandedDbs.has(database) && (
-                  <div className="ml-4">
-                    {tables.map((table) => (
-                      <button
-                        key={`${database}.${table}`}
-                        onClick={() => handleTableClick(table, database)}
-                        className={cn(
-                          "w-full flex items-center gap-1.5 px-3 py-1",
-                          "hover:bg-surface-container-high/50 transition-colors",
-                          "text-left group"
-                        )}
-                      >
-                        <Table className="w-3 h-3 text-on-surface-variant flex-shrink-0" />
-                        <span className="text-xs text-on-surface-variant group-hover:text-on-surface truncate">
-                          {table}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))
+            renderSingleDbSchemas()
           )}
         </div>
       </div>

@@ -202,30 +202,19 @@ interface PersistedTab {
   query: string;
 }
 
-// SQL Server database options
-const sqlServerDatabases = [
-  { id: "sqlserver", name: "Staging", database: "Staging" },
-  { id: "sqlserver-bi-backup", name: "BI_Backup", database: "BI_Backup" },
-] as const;
-
 export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
-  const baseConfig = databaseConfig[type];
+  const config = databaseConfig[type];
   const { showToast } = useToast();
   const { tables, saveTable } = useMerge();
   const queryExecution = useQueryExecution();
   const panelRef = React.useRef<HTMLDivElement>(null);
 
-  // For SQL Server, allow switching between databases
-  const [selectedSqlServerDb, setSelectedSqlServerDb] = React.useState<"sqlserver" | "sqlserver-bi-backup">("sqlserver");
-
-  // Get effective database type (for API calls)
-  const effectiveDbType: DatabaseType = type === "sqlserver" ? selectedSqlServerDb : type;
-
-  // Get effective config based on selected database
-  const config = type === "sqlserver" ? databaseConfig[selectedSqlServerDb] : baseConfig;
+  // For SQL Server, queries can reference both Staging and BI_Backup databases
+  // using [Database].[Schema].[Table] syntax, so we always use "sqlserver" connection
+  const effectiveDbType: DatabaseType = type;
 
   // Get the effective default query (prop or built-in default)
-  const effectiveDefaultQuery = defaultQuery || defaultQueries[effectiveDbType];
+  const effectiveDefaultQuery = defaultQuery || defaultQueries[type];
 
   // Initialize tabs from localStorage or create default
   const [tabs, setTabs] = React.useState<TabState[]>(() => {
@@ -761,16 +750,21 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
   }, []);
 
   const handleTableSelect = React.useCallback(
-    (tableName: string, schema: string) => {
+    (tableName: string, schema: string, dbType?: DatabaseType) => {
       // Insert the fully qualified table name at cursor or append to query
       // Different format for Redshift vs SQL Server
-      const tableRef = type === "redshift"
-        ? `${schema}.${tableName}`
-        : `[${schema}].[dbo].[${tableName}]`;
+      let tableRef: string;
+      let selectQuery: string;
 
-      const selectQuery = type === "redshift"
-        ? `SELECT * FROM ${tableRef} LIMIT 100`
-        : `SELECT TOP 100 * FROM ${tableRef}`;
+      if (type === "redshift") {
+        tableRef = `${schema}.${tableName}`;
+        selectQuery = `SELECT * FROM ${tableRef} LIMIT 100`;
+      } else {
+        // SQL Server - include database name for cross-database queries
+        const dbName = dbType === "sqlserver-bi-backup" ? "BI_Backup" : "Staging";
+        tableRef = `[${dbName}].[${schema}].[${tableName}]`;
+        selectQuery = `SELECT TOP 100 * FROM ${tableRef}`;
+      }
 
       setQuery((prev) => {
         if (prev.trim()) {
@@ -829,40 +823,9 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
             <div className="relative z-10 scale-[0.85]">{config.icon}</div>
           </div>
           <div>
-            <div className="flex items-center gap-1">
-              <h2 className="text-xs font-semibold text-on-surface leading-tight">
-                {type === "sqlserver" ? "SQL Server" : config.name}
-              </h2>
-              {/* Database selector for SQL Server */}
-              {type === "sqlserver" && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-5 px-1.5 text-[10px] font-medium bg-sqlserver/10 hover:bg-sqlserver/20 text-sqlserver rounded"
-                    >
-                      {sqlServerDatabases.find(db => db.id === selectedSqlServerDb)?.database || "Staging"}
-                      <ChevronDown className="w-3 h-3 ml-0.5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="min-w-[120px]">
-                    {sqlServerDatabases.map((db) => (
-                      <DropdownMenuItem
-                        key={db.id}
-                        onClick={() => setSelectedSqlServerDb(db.id)}
-                        className={cn(
-                          "text-xs",
-                          selectedSqlServerDb === db.id && "bg-sqlserver/10 text-sqlserver"
-                        )}
-                      >
-                        {db.database}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
+            <h2 className="text-xs font-semibold text-on-surface leading-tight">
+              {type === "sqlserver" ? "SQL Server" : config.name}
+            </h2>
             <span className="text-[10px] text-on-surface-variant flex items-center gap-1">
               <span
                 className={cn(
@@ -1217,7 +1180,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
 
             {/* SchemaBrowser - takes remaining space, scrolls internally */}
             <div className="flex-1 min-h-0 overflow-hidden">
-              <SchemaBrowser type={effectiveDbType} onTableSelect={handleTableSelect} refreshKey={schemaRefreshKey} />
+              <SchemaBrowser type={type} onTableSelect={handleTableSelect} refreshKey={schemaRefreshKey} />
             </div>
             </div>
 
