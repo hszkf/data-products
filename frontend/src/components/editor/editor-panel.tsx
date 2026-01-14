@@ -305,7 +305,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
   const cursorPosition = activeTab?.cursorPosition || { line: 1, column: 1 };
 
   // Check if query is running from the global context
-  const isLoading = queryExecution.isRunning(type, activeTabId);
+  const isLoading = queryExecution.isRunning(effectiveDbType, activeTabId);
   const [isConnected, setIsConnected] = React.useState<boolean | null>(null);
   const [isExplorerOpen, setIsExplorerOpen] = React.useState(false);
   const [explorerWidth, setExplorerWidth] = React.useState(260);
@@ -431,7 +431,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
 
   // Restore execution state when component mounts or active tab changes
   React.useEffect(() => {
-    const execution = queryExecution.getExecution(type, activeTabId);
+    const execution = queryExecution.getExecution(effectiveDbType, activeTabId);
     if (execution) {
       // Restore result if query completed while we were away
       if (execution.result && !execution.isRunning) {
@@ -448,7 +448,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
         }
       }
     }
-  }, [type, activeTabId, queryExecution, updateActiveTab]);
+  }, [effectiveDbType, activeTabId, queryExecution, updateActiveTab]);
 
   // Check connection status on mount - use cache first, then refresh in background
   React.useEffect(() => {
@@ -536,9 +536,9 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
 
   // Stop running query
   const stopQuery = React.useCallback(() => {
-    queryExecution.stopExecution(type, activeTabId);
+    queryExecution.stopExecution(effectiveDbType, activeTabId);
     showToast("Query cancelled", "info");
-  }, [queryExecution, type, activeTabId, showToast]);
+  }, [queryExecution, effectiveDbType, activeTabId, showToast]);
 
   const executeQuery = React.useCallback(async () => {
     if (!query.trim()) {
@@ -609,21 +609,23 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
     } else {
       // Normal database query execution - use global context for persistence
       try {
-        const result = await queryExecution.startExecution(effectiveDbType, activeTabId, query);
+        const queryResponse = await queryExecution.startExecution(effectiveDbType, activeTabId, query);
 
-        setResult({
-          columns: result.columns,
-          rows: result.rows,
-          executionTime: result.executionTime,
-          message: result.message,
-        });
+        // Create the result object
+        const queryResult: QueryResult = {
+          columns: queryResponse.columns,
+          rows: queryResponse.rows,
+          executionTime: queryResponse.executionTime,
+          message: queryResponse.message,
+        };
 
-        const response = result;
+        // Set the result immediately to display in the results panel
+        setResult(queryResult);
 
         // Auto-save results to merge context for cross-database queries
         // Only save if it looks like a table query (not a random SQL statement)
         // For SQL Server, allow sys. queries if they return actual data
-        if (response.columns.length > 0 && response.rows.length > 0 &&
+        if (queryResponse.columns.length > 0 && queryResponse.rows.length > 0 &&
             (query.toLowerCase().includes('select') || query.toLowerCase().includes('from'))) {
 
           // Database-specific filtering
@@ -638,9 +640,9 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
 
           if (isSystemQuery) {
             // Don't save system metadata queries to merge context, but save to history
-            addToHistory(effectiveDbType, query, true, response.executionTime, response.rows.length);
+            addToHistory(effectiveDbType, query, true, queryResponse.executionTime, queryResponse.rows.length);
             showToast(
-              `Query executed successfully (${response.rows.length} rows in ${formatExecutionTime(response.executionTime)})`,
+              `Query executed successfully (${queryResponse.rows.length} rows in ${formatExecutionTime(queryResponse.executionTime)})`,
               "success"
             );
             return;
@@ -650,17 +652,17 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
           const tableName = effectiveDbType === 'redshift' ? getRedshiftTableName(activeTab?.name) : getSqlServerTableName(activeTab?.name);
 
           // Debug: log what's being saved
-          console.log(`[${effectiveDbType}] Saving ${response.rows.length} rows to table ${tableName}`);
-          console.log('Columns:', response.columns);
+          console.log(`[${effectiveDbType}] Saving ${queryResponse.rows.length} rows to table ${tableName}`);
+          console.log('Columns:', queryResponse.columns);
 
           saveTable(tableName, {
-            columns: response.columns,
-            rows: response.rows,
+            columns: queryResponse.columns,
+            rows: queryResponse.rows,
             source: effectiveDbType,
           });
 
           // Save to history
-          addToHistory(effectiveDbType, query, true, response.executionTime, response.rows.length);
+          addToHistory(effectiveDbType, query, true, queryResponse.executionTime, queryResponse.rows.length);
 
           // Show toast with the table name
           showToast(
@@ -669,9 +671,9 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
           );
         } else {
           // Save to history (query with no results or non-SELECT)
-          addToHistory(effectiveDbType, query, true, response.executionTime, response.rows.length);
+          addToHistory(effectiveDbType, query, true, queryResponse.executionTime, queryResponse.rows.length);
           showToast(
-            `Query executed successfully (${response.rows.length} rows in ${formatExecutionTime(response.executionTime)})`,
+            `Query executed successfully (${queryResponse.rows.length} rows in ${formatExecutionTime(queryResponse.executionTime)})`,
             "success"
           );
         }
@@ -702,7 +704,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
 
         if (isConnectionError) {
           setIsConnected(false);
-          setCachedConnectionStatus(type, false);
+          setCachedConnectionStatus(effectiveDbType, false);
         }
 
         // Parse error to extract line number
@@ -724,7 +726,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
         });
       }
     }
-  }, [effectiveDbType, activeTabId, query, tables, queryExecution, showToast, saveTable, activeTab?.name]);
+  }, [effectiveDbType, activeTabId, query, tables, queryExecution, showToast, saveTable, activeTab?.name, setResult, setErrorLine, setErrorMessage]);
 
   const handleKeyDown = React.useCallback(
     (e: React.KeyboardEvent) => {
