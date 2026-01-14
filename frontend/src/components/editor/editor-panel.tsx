@@ -39,7 +39,7 @@ import {
 } from "~/lib/query-history";
 import { formatSql } from "~/lib/sql-formatter";
 
-export type DatabaseType = "redshift" | "sqlserver" | "sqlserver-bi-backup";
+export type DatabaseType = "redshift" | "sqlserver" | "sqlserver-bi-backup" | "sqlserver-datamart";
 
 // Default queries for each database type
 const defaultQueries: Record<DatabaseType, string> = {
@@ -48,6 +48,7 @@ const defaultQueries: Record<DatabaseType, string> = {
 FROM
     redshift_customers.public_customers
 LIMIT 10`,
+  "sqlserver-datamart": `SELECT TOP 100 * FROM [Datamart].[dbo].[YourTable]`,
   sqlserver: `SELECT * FROM [Staging].[dbo].[Def_CCRIS_Entity_Type_Code]`,
   "sqlserver-bi-backup": `SELECT TOP 10 * FROM [BI_Backup].[dbo].[your_table]`,
 };
@@ -761,7 +762,12 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
         selectQuery = `SELECT * FROM ${tableRef} LIMIT 100`;
       } else {
         // SQL Server - include database name for cross-database queries
-        const dbName = dbType === "sqlserver-bi-backup" ? "BI_Backup" : "Staging";
+        const dbNameMap: Record<string, string> = {
+          "sqlserver": "Staging",
+          "sqlserver-bi-backup": "BI_Backup",
+          "sqlserver-datamart": "Datamart",
+        };
+        const dbName = dbType ? dbNameMap[dbType] || "Staging" : "Staging";
         tableRef = `[${dbName}].[${schema}].[${tableName}]`;
         selectQuery = `SELECT TOP 100 * FROM ${tableRef}`;
       }

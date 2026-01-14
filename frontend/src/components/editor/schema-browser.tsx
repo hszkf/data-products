@@ -104,11 +104,12 @@ export function SchemaBrowser({ type, onTableSelect, refreshKey = 0 }: SchemaBro
     setError(null);
 
     if (isSqlServer) {
-      // Fetch both SQL Server databases
+      // Fetch all SQL Server databases
       try {
-        const [stagingResult, biBackupResult] = await Promise.all([
+        const [stagingResult, biBackupResult, datamartResult] = await Promise.all([
           getSchemas("sqlserver", refresh),
           getSchemas("sqlserver-bi-backup", refresh),
+          getSchemas("sqlserver-datamart", refresh),
         ]);
 
         const multiDb: MultiDbSchemaData = {};
@@ -118,6 +119,9 @@ export function SchemaBrowser({ type, onTableSelect, refreshKey = 0 }: SchemaBro
         }
         if (biBackupResult.schemas && Object.keys(biBackupResult.schemas).length > 0) {
           multiDb["BI_Backup"] = biBackupResult.schemas;
+        }
+        if (datamartResult.schemas && Object.keys(datamartResult.schemas).length > 0) {
+          multiDb["Datamart"] = datamartResult.schemas;
         }
 
         setMultiDbSchemas(multiDb);
@@ -317,11 +321,17 @@ export function SchemaBrowser({ type, onTableSelect, refreshKey = 0 }: SchemaBro
     ))
   );
 
-  // Render multi-database schemas (SQL Server: Staging + BI_Backup)
+  // Render multi-database schemas (SQL Server: Staging + BI_Backup + Datamart)
   const renderMultiDbSchemas = () => (
     Object.entries(multiDbSchemas).map(([dbName, dbSchemas]) => {
       const dbKey = `db-${dbName}`;
-      const dbType: DatabaseType = dbName === "Staging" ? "sqlserver" : "sqlserver-bi-backup";
+      // Map database name to database type for API calls
+      const dbTypeMap: Record<string, DatabaseType> = {
+        "Staging": "sqlserver",
+        "BI_Backup": "sqlserver-bi-backup",
+        "Datamart": "sqlserver-datamart",
+      };
+      const dbType: DatabaseType = dbTypeMap[dbName] || "sqlserver";
       const totalTables = Object.values(dbSchemas).flat().length;
 
       return (
