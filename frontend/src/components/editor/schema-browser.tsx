@@ -26,6 +26,7 @@ interface SchemaCache {
     schemas: {
       redshift: Record<string, string[]>;
       sqlserver: Record<string, string[]>;
+      "sqlserver-bi-backup": Record<string, string[]>;
     };
   };
   timestamp: number;

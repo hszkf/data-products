@@ -42,7 +42,7 @@ export interface ClearCacheResult {
  * Execute a SQL query against the specified database
  */
 export async function executeQuery(
-  database: "sqlserver" | "redshift",
+  database: "sqlserver" | "sqlserver-bi-backup" | "redshift",
   sql: string,
   parameters?: unknown[],
   signal?: AbortSignal
@@ -134,7 +134,7 @@ export async function executeQuery(
  * Check the health status of a database connection
  */
 export async function checkHealth(
-  database: "sqlserver" | "redshift"
+  database: "sqlserver" | "sqlserver-bi-backup" | "redshift"
 ): Promise<HealthStatus> {
   try {
     const response = await fetch(`${API_BASE_URL}/${database}/health`);
@@ -154,7 +154,7 @@ export async function checkHealth(
  * @param refresh - If true, bypasses cache and fetches fresh data
  */
 export async function getSchemas(
-  database: "sqlserver" | "redshift",
+  database: "sqlserver" | "sqlserver-bi-backup" | "redshift",
   refresh: boolean = false
 ): Promise<SchemaResult> {
   try {
@@ -201,7 +201,7 @@ export async function getSchemas(
  * Clear the schema cache for a database
  */
 export async function clearSchemaCache(
-  database: "sqlserver" | "redshift"
+  database: "sqlserver" | "sqlserver-bi-backup" | "redshift"
 ): Promise<ClearCacheResult> {
   try {
     const response = await fetch(`${API_BASE_URL}/${database}/schema/cache`, {

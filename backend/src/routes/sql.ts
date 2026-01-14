@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import * as sqlserver from '../services/database/sqlserver';
+import * as sqlserverBiBackup from '../services/database/sqlserver-bi-backup';
 import * as redshift from '../services/database/redshift';
 import { schemaCache } from '../services/schema-cache';
 import { logger } from '../utils/logger';
@@ -22,13 +23,23 @@ function getDatabase(path: string) {
   if (path.includes('/redshift')) {
     return redshift;
   }
+  if (path.includes('/sqlserver-bi-backup')) {
+    return sqlserverBiBackup;
+  }
   return sqlserver;
+}
+
+// Get database type name from path
+function getDatabaseType(path: string): string {
+  if (path.includes('/redshift')) return 'redshift';
+  if (path.includes('/sqlserver-bi-backup')) return 'sqlserver-bi-backup';
+  return 'sqlserver';
 }
 
 // Execute SQL query
 sqlRoutes.post('/execute', async (c) => {
   const startTime = Date.now();
-  const database = c.req.path.includes('/redshift') ? 'redshift' : 'sqlserver';
+  const database = getDatabaseType(c.req.path);
 
   try {
     const body = await c.req.json();
@@ -67,7 +78,7 @@ sqlRoutes.post('/execute', async (c) => {
 
 // Get database schema (with caching)
 sqlRoutes.get('/schema', async (c) => {
-  const dbType = c.req.path.includes('/redshift') ? 'redshift' : 'sqlserver';
+  const dbType = getDatabaseType(c.req.path);
   const forceRefresh = c.req.query('refresh') === 'true';
 
   try {
@@ -134,7 +145,7 @@ sqlRoutes.get('/schema', async (c) => {
 
 // Get cache info
 sqlRoutes.get('/schema/cache', async (c) => {
-  const dbType = c.req.path.includes('/redshift') ? 'redshift' : 'sqlserver';
+  const dbType = getDatabaseType(c.req.path);
   const cacheInfo = schemaCache.getInfo(dbType);
 
   return c.json({
@@ -146,7 +157,7 @@ sqlRoutes.get('/schema/cache', async (c) => {
 
 // Clear schema cache
 sqlRoutes.delete('/schema/cache', async (c) => {
-  const dbType = c.req.path.includes('/redshift') ? 'redshift' : 'sqlserver';
+  const dbType = getDatabaseType(c.req.path);
   const cleared = schemaCache.clear(dbType);
 
   return c.json({
@@ -159,6 +170,7 @@ sqlRoutes.delete('/schema/cache', async (c) => {
 
 // Health check
 sqlRoutes.get('/health', async (c) => {
+  const dbType = getDatabaseType(c.req.path);
   try {
     const db = getDatabase(c.req.path);
     const healthStatus = await db.getHealthStatus();
@@ -168,12 +180,12 @@ sqlRoutes.get('/health', async (c) => {
     return c.json({
       ...healthStatus,
       status: healthStatus.connected ? 'connected' : 'disconnected',
-      database: c.req.path.includes('/redshift') ? 'redshift' : 'sqlserver',
+      database: dbType,
     });
   } catch (error: any) {
     return c.json({
       status: 'disconnected',
-      database: c.req.path.includes('/redshift') ? 'redshift' : 'sqlserver',
+      database: dbType,
       error: error.message,
     });
   }

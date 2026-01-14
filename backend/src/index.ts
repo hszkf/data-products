@@ -10,6 +10,7 @@ import { ragRoutes } from './routes/rag';
 import { usersRoutes } from './routes/users';
 import { logsRoutes } from './routes/logs';
 import { initSqlServer, closeSqlServer, getHealthStatus as getSqlServerHealth } from './services/database/sqlserver';
+import { initSqlServerBiBackup, closeSqlServerBiBackup, getHealthStatus as getSqlServerBiBackupHealth } from './services/database/sqlserver-bi-backup';
 import { initRedshift, closeRedshift, getHealthStatus as getRedshiftHealth } from './services/database/redshift';
 import { initUnifiedSql, closeUnifiedSql, getUnifiedHealthStatus } from './services/database/unified-sql';
 import { storageService } from './services/storage-service';
@@ -118,6 +119,15 @@ app.get('/redshift/health', async (c) => {
   }
 });
 
+app.get('/sqlserver-bi-backup/health', async (c) => {
+  try {
+    const health = await getSqlServerBiBackupHealth();
+    return c.json(health, health.connected ? 200 : 503);
+  } catch (error) {
+    return c.json({ status: 'disconnected', connected: false, error: (error as Error).message }, 503);
+  }
+});
+
 app.get('/storage/health', async (c) => {
   try {
     const health = await storageService.healthCheck();
@@ -147,6 +157,7 @@ app.get('/sqlv2/health', async (c) => {
 
 // Mount routes
 app.route('/sqlserver', sqlRoutes);
+app.route('/sqlserver-bi-backup', sqlRoutes); // SQL Server BI_Backup uses same interface
 app.route('/redshift', sqlRoutes); // Redshift uses same interface
 app.route('/sqlv2', sqlv2Routes); // Unified SQL v2 routes
 app.route('/jobs', jobsRoutes);
@@ -168,7 +179,16 @@ async function startup() {
     await initSqlServer();
     logger.info('SQL Server connection initialized');
   } catch (error) {
-    logger.warn('SQL Server connection failed (will retry on first request)', { 
+    logger.warn('SQL Server connection failed (will retry on first request)', {
+      metadata: { error: (error as Error).message }
+    });
+  }
+
+  try {
+    await initSqlServerBiBackup();
+    logger.info('SQL Server BI_Backup connection initialized');
+  } catch (error) {
+    logger.warn('SQL Server BI_Backup connection failed (will retry on first request)', {
       metadata: { error: (error as Error).message }
     });
   }
@@ -230,6 +250,7 @@ process.on('SIGINT', async () => {
   console.log('\n🛑 Shutting down...');
   schedulerService.stop();
   await closeSqlServer();
+  await closeSqlServerBiBackup();
   await closeRedshift();
   await closeUnifiedSql();
   process.exit(0);
@@ -240,6 +261,7 @@ process.on('SIGTERM', async () => {
   console.log('\n🛑 Shutting down...');
   schedulerService.stop();
   await closeSqlServer();
+  await closeSqlServerBiBackup();
   await closeRedshift();
   await closeUnifiedSql();
   process.exit(0);

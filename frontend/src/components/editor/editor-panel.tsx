@@ -39,7 +39,7 @@ import {
 } from "~/lib/query-history";
 import { formatSql } from "~/lib/sql-formatter";
 
-export type DatabaseType = "redshift" | "sqlserver";
+export type DatabaseType = "redshift" | "sqlserver" | "sqlserver-bi-backup";
 
 // Default queries for each database type
 const defaultQueries: Record<DatabaseType, string> = {
@@ -49,6 +49,7 @@ FROM
     redshift_customers.public_customers
 LIMIT 10`,
   sqlserver: `SELECT * FROM [Staging].[dbo].[Def_CCRIS_Entity_Type_Code]`,
+  "sqlserver-bi-backup": `SELECT TOP 10 * FROM [BI_Backup].[dbo].[your_table]`,
 };
 
 interface EditorPanelProps {
@@ -105,6 +106,29 @@ const databaseConfig = {
         <path d="M3 9H21" stroke="#0078d4" strokeWidth="2" />
         <path d="M9 9V21" stroke="#0078d4" strokeWidth="2" />
         <circle cx="6" cy="6" r="1" fill="#0078d4" />
+      </svg>
+    ),
+  },
+  "sqlserver-bi-backup": {
+    name: "SQL Server BI_Backup",
+    connection: "10.200.224.42",
+    database: "BI_Backup",
+    schema: "dbo",
+    version: "SQL Server",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className="w-[18px] h-[18px]">
+        <rect
+          x="3"
+          y="3"
+          width="18"
+          height="18"
+          rx="2"
+          stroke="#16a34a"
+          strokeWidth="2"
+        />
+        <path d="M3 9H21" stroke="#16a34a" strokeWidth="2" />
+        <path d="M9 9V21" stroke="#16a34a" strokeWidth="2" />
+        <circle cx="6" cy="6" r="1" fill="#16a34a" />
       </svg>
     ),
   },
@@ -178,15 +202,30 @@ interface PersistedTab {
   query: string;
 }
 
+// SQL Server database options
+const sqlServerDatabases = [
+  { id: "sqlserver", name: "Staging", database: "Staging" },
+  { id: "sqlserver-bi-backup", name: "BI_Backup", database: "BI_Backup" },
+] as const;
+
 export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
-  const config = databaseConfig[type];
+  const baseConfig = databaseConfig[type];
   const { showToast } = useToast();
   const { tables, saveTable } = useMerge();
   const queryExecution = useQueryExecution();
   const panelRef = React.useRef<HTMLDivElement>(null);
 
+  // For SQL Server, allow switching between databases
+  const [selectedSqlServerDb, setSelectedSqlServerDb] = React.useState<"sqlserver" | "sqlserver-bi-backup">("sqlserver");
+
+  // Get effective database type (for API calls)
+  const effectiveDbType: DatabaseType = type === "sqlserver" ? selectedSqlServerDb : type;
+
+  // Get effective config based on selected database
+  const config = type === "sqlserver" ? databaseConfig[selectedSqlServerDb] : baseConfig;
+
   // Get the effective default query (prop or built-in default)
-  const effectiveDefaultQuery = defaultQuery || defaultQueries[type];
+  const effectiveDefaultQuery = defaultQuery || defaultQueries[effectiveDbType];
 
   // Initialize tabs from localStorage or create default
   const [tabs, setTabs] = React.useState<TabState[]>(() => {
@@ -416,22 +455,22 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
     let mounted = true;
 
     // Check cache first for instant UI
-    const cachedStatus = getCachedConnectionStatus(type);
+    const cachedStatus = getCachedConnectionStatus(effectiveDbType);
     if (cachedStatus !== null) {
       setIsConnected(cachedStatus);
     }
 
     const checkConnectionStatus = async () => {
       try {
-        const health = await checkHealth(type);
+        const health = await checkHealth(effectiveDbType);
         if (!mounted) return;
         const isHealthy = health.status === "connected" && health.connected === true;
         setIsConnected(isHealthy);
-        setCachedConnectionStatus(type, isHealthy);
+        setCachedConnectionStatus(effectiveDbType, isHealthy);
       } catch (error) {
         if (!mounted) return;
         setIsConnected(false);
-        setCachedConnectionStatus(type, false);
+        setCachedConnectionStatus(effectiveDbType, false);
       }
     };
 
@@ -450,7 +489,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
     return () => {
       mounted = false;
     };
-  }, [type]);
+  }, [effectiveDbType]);
 
   // Ref to track editor container for resize calculations
   const editorContainerRef = React.useRef<HTMLDivElement>(null);
@@ -570,7 +609,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
     } else {
       // Normal database query execution - use global context for persistence
       try {
-        const result = await queryExecution.startExecution(type, activeTabId, query);
+        const result = await queryExecution.startExecution(effectiveDbType, activeTabId, query);
 
         setResult({
           columns: result.columns,
@@ -589,17 +628,17 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
 
           // Database-specific filtering
           const isSystemQuery =
-            (type === 'redshift' && (
+            (effectiveDbType === 'redshift' && (
               query.toLowerCase().includes('information_schema') ||
               query.toLowerCase().includes('pg_')
             )) ||
-            (type === 'sqlserver' && (
+            (effectiveDbType.startsWith('sqlserver') && (
               query.toLowerCase().includes('information_schema')
             ));
 
           if (isSystemQuery) {
             // Don't save system metadata queries to merge context, but save to history
-            addToHistory(type, query, true, response.executionTime, response.rows.length);
+            addToHistory(effectiveDbType, query, true, response.executionTime, response.rows.length);
             showToast(
               `Query executed successfully (${response.rows.length} rows in ${formatExecutionTime(response.executionTime)})`,
               "success"
@@ -608,20 +647,20 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
           }
 
           // Generate table name with query number (e.g., rsq1_42, ssq2_87)
-          const tableName = type === 'redshift' ? getRedshiftTableName(activeTab?.name) : getSqlServerTableName(activeTab?.name);
+          const tableName = effectiveDbType === 'redshift' ? getRedshiftTableName(activeTab?.name) : getSqlServerTableName(activeTab?.name);
 
           // Debug: log what's being saved
-          console.log(`[${type}] Saving ${response.rows.length} rows to table ${tableName}`);
+          console.log(`[${effectiveDbType}] Saving ${response.rows.length} rows to table ${tableName}`);
           console.log('Columns:', response.columns);
 
           saveTable(tableName, {
             columns: response.columns,
             rows: response.rows,
-            source: type,
+            source: effectiveDbType,
           });
 
           // Save to history
-          addToHistory(type, query, true, response.executionTime, response.rows.length);
+          addToHistory(effectiveDbType, query, true, response.executionTime, response.rows.length);
 
           // Show toast with the table name
           showToast(
@@ -630,7 +669,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
           );
         } else {
           // Save to history (query with no results or non-SELECT)
-          addToHistory(type, query, true, response.executionTime, response.rows.length);
+          addToHistory(effectiveDbType, query, true, response.executionTime, response.rows.length);
           showToast(
             `Query executed successfully (${response.rows.length} rows in ${formatExecutionTime(response.executionTime)})`,
             "success"
@@ -647,7 +686,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
           error instanceof Error ? error.message : "Query execution failed";
 
         // Save failed query to history
-        addToHistory(type, query, false);
+        addToHistory(effectiveDbType, query, false);
 
         showToast(errorMsg, "error");
 
@@ -685,7 +724,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
         });
       }
     }
-  }, [type, activeTabId, query, tables, queryExecution, showToast, saveTable]);
+  }, [effectiveDbType, activeTabId, query, tables, queryExecution, showToast, saveTable, activeTab?.name]);
 
   const handleKeyDown = React.useCallback(
     (e: React.KeyboardEvent) => {
@@ -705,7 +744,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
   const handleClearSchemaCache = React.useCallback(async () => {
     setIsClearingCache(true);
     try {
-      await clearSchemaCache(type);
+      await clearSchemaCache(effectiveDbType);
       showToast("Cache cleared", "success");
       setSchemaRefreshKey(prev => prev + 1);
     } catch (err) {
@@ -713,7 +752,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
     } finally {
       setIsClearingCache(false);
     }
-  }, [type, showToast]);
+  }, [effectiveDbType, showToast]);
 
   const handleExplorerUpload = React.useCallback(() => {
     explorerFileInputRef.current?.click();
@@ -788,9 +827,40 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
             <div className="relative z-10 scale-[0.85]">{config.icon}</div>
           </div>
           <div>
-            <h2 className="text-xs font-semibold text-on-surface leading-tight">
-              {config.name}
-            </h2>
+            <div className="flex items-center gap-1">
+              <h2 className="text-xs font-semibold text-on-surface leading-tight">
+                {type === "sqlserver" ? "SQL Server" : config.name}
+              </h2>
+              {/* Database selector for SQL Server */}
+              {type === "sqlserver" && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 px-1.5 text-[10px] font-medium bg-sqlserver/10 hover:bg-sqlserver/20 text-sqlserver rounded"
+                    >
+                      {sqlServerDatabases.find(db => db.id === selectedSqlServerDb)?.database || "Staging"}
+                      <ChevronDown className="w-3 h-3 ml-0.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="min-w-[120px]">
+                    {sqlServerDatabases.map((db) => (
+                      <DropdownMenuItem
+                        key={db.id}
+                        onClick={() => setSelectedSqlServerDb(db.id)}
+                        className={cn(
+                          "text-xs",
+                          selectedSqlServerDb === db.id && "bg-sqlserver/10 text-sqlserver"
+                        )}
+                      >
+                        {db.database}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
             <span className="text-[10px] text-on-surface-variant flex items-center gap-1">
               <span
                 className={cn(
@@ -1145,7 +1215,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
 
             {/* SchemaBrowser - takes remaining space, scrolls internally */}
             <div className="flex-1 min-h-0 overflow-hidden">
-              <SchemaBrowser type={type} onTableSelect={handleTableSelect} refreshKey={schemaRefreshKey} />
+              <SchemaBrowser type={effectiveDbType} onTableSelect={handleTableSelect} refreshKey={schemaRefreshKey} />
             </div>
             </div>
 
