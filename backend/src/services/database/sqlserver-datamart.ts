@@ -1,13 +1,13 @@
 import sql from 'mssql';
 
-// SQL Server BI_Backup connection configuration
-// Use explicit ConnectionPool instead of global sql.connect() to avoid sharing with Staging
+// SQL Server Datamart connection configuration
+// Use explicit ConnectionPool instead of global sql.connect() to avoid sharing with other databases
 const config: sql.config = {
-  user: process.env.SQLSERVER_BI_USER || process.env.SQLSERVER_USER || 'ssis_admin',
-  password: process.env.SQLSERVER_BI_PASSWORD || process.env.SQLSERVER_PASSWORD || 'P@55word',
-  server: process.env.SQLSERVER_BI_HOST || process.env.SQLSERVER_HOST || '10.200.224.42',
-  database: process.env.SQLSERVER_BI_DATABASE || 'BI_Backup',
-  port: parseInt(process.env.SQLSERVER_BI_PORT || process.env.SQLSERVER_PORT || '1433'),
+  user: process.env.SQLSERVER_DATAMART_USER || process.env.SQLSERVER_USER || 'ssis_admin',
+  password: process.env.SQLSERVER_DATAMART_PASSWORD || process.env.SQLSERVER_PASSWORD || 'P@55word',
+  server: process.env.SQLSERVER_DATAMART_HOST || process.env.SQLSERVER_HOST || '10.200.224.42',
+  database: process.env.SQLSERVER_DATAMART_DATABASE || 'Datamart',
+  port: parseInt(process.env.SQLSERVER_DATAMART_PORT || process.env.SQLSERVER_PORT || '1433'),
   options: {
     encrypt: process.env.SQLSERVER_ENCRYPT === 'true',
     trustServerCertificate: process.env.SQLSERVER_TRUST_CERT !== 'false',
@@ -23,33 +23,33 @@ const config: sql.config = {
   connectionTimeout: 60000,
 };
 
-// Use explicit ConnectionPool to have separate pool from Staging
+// Use explicit ConnectionPool to have separate pool from other databases
 let pool: sql.ConnectionPool | null = null;
 
-export async function initSqlServerBiBackup(): Promise<void> {
+export async function initSqlServerDatamart(): Promise<void> {
   try {
     // Create explicit pool instead of using global sql.connect()
     pool = new sql.ConnectionPool(config);
     await pool.connect();
-    console.log(`✅ SQL Server BI_Backup connected (database: ${config.database})`);
+    console.log(`✅ SQL Server Datamart connected (database: ${config.database})`);
   } catch (error) {
-    console.error('❌ SQL Server BI_Backup connection failed:', error);
+    console.error('❌ SQL Server Datamart connection failed:', error);
     throw error;
   }
 }
 
-export async function closeSqlServerBiBackup(): Promise<void> {
+export async function closeSqlServerDatamart(): Promise<void> {
   if (pool) {
     await pool.close();
     pool = null;
-    console.log('SQL Server BI_Backup connection closed');
+    console.log('SQL Server Datamart connection closed');
   }
 }
 
 export async function getPool(): Promise<sql.ConnectionPool> {
   if (!pool || !pool.connected) {
-    console.log(`🔄 Reconnecting to SQL Server BI_Backup (database: ${config.database})...`);
-    await initSqlServerBiBackup();
+    console.log(`🔄 Reconnecting to SQL Server Datamart (database: ${config.database})...`);
+    await initSqlServerDatamart();
   }
   return pool!;
 }
@@ -82,7 +82,7 @@ export async function executeQuery(query: string): Promise<QueryResult> {
       executionTime,
     };
   } catch (error: any) {
-    throw new Error(`SQL Server BI_Backup query error: ${error.message}`);
+    throw new Error(`SQL Server Datamart query error: ${error.message}`);
   }
 }
 
@@ -142,7 +142,7 @@ export async function getHealthStatus(): Promise<any> {
     const poolInstance = await getPool();
     await poolInstance.request().query('SELECT 1 as healthy');
 
-    console.log(`[SQL Server BI_Backup Health] connected=true`);
+    console.log(`[SQL Server Datamart Health] connected=true`);
     return {
       status: 'connected',
       connected: true,
@@ -153,7 +153,7 @@ export async function getHealthStatus(): Promise<any> {
       },
     };
   } catch (error: any) {
-    console.log(`[SQL Server BI_Backup Health] connected=false, error=${error.message}`);
+    console.log(`[SQL Server Datamart Health] connected=false, error=${error.message}`);
     return {
       status: 'disconnected',
       connected: false,

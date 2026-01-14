@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import * as sqlserver from '../services/database/sqlserver';
 import * as sqlserverBiBackup from '../services/database/sqlserver-bi-backup';
+import * as sqlserverDatamart from '../services/database/sqlserver-datamart';
 import * as redshift from '../services/database/redshift';
 import { schemaCache } from '../services/schema-cache';
 import { logger } from '../utils/logger';
@@ -23,6 +24,9 @@ function getDatabase(path: string) {
   if (path.includes('/redshift')) {
     return redshift;
   }
+  if (path.includes('/sqlserver-datamart')) {
+    return sqlserverDatamart;
+  }
   if (path.includes('/sqlserver-bi-backup')) {
     return sqlserverBiBackup;
   }
@@ -32,6 +36,7 @@ function getDatabase(path: string) {
 // Get database type name from path
 function getDatabaseType(path: string): string {
   if (path.includes('/redshift')) return 'redshift';
+  if (path.includes('/sqlserver-datamart')) return 'sqlserver-datamart';
   if (path.includes('/sqlserver-bi-backup')) return 'sqlserver-bi-backup';
   return 'sqlserver';
 }
