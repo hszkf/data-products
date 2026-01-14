@@ -365,7 +365,7 @@ export function getSuggestions(
         }
       }
 
-      if (suggestions.length >= 20) break;
+      if (suggestions.length >= 50) break;
     }
   } else {
     // User typed plain text (no dot) - show KEYWORDS and SCHEMAS
@@ -409,7 +409,7 @@ export function getSuggestions(
     return a.label.localeCompare(b.label);
   });
 
-  return suggestions.slice(0, 12);
+  return suggestions.slice(0, 30);
 }
 
 /**
