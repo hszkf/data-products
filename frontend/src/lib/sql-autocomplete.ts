@@ -365,7 +365,6 @@ export function getSuggestions(
         }
       }
 
-      if (suggestions.length >= 20) break;
     }
   } else {
     // User typed plain text (no dot) - show KEYWORDS and SCHEMAS
@@ -380,7 +379,6 @@ export function getSuggestions(
           type: "keyword",
         });
       }
-      if (suggestions.length >= 8) break; // Limit keywords
     }
 
     // Then match schema names
@@ -395,8 +393,6 @@ export function getSuggestions(
           type: "schema",
         });
       }
-
-      if (suggestions.length >= 15) break;
     }
   }
 
@@ -409,7 +405,7 @@ export function getSuggestions(
     return a.label.localeCompare(b.label);
   });
 
-  return suggestions.slice(0, 12);
+  return suggestions;
 }
 
 /**

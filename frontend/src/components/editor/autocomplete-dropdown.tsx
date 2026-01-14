@@ -43,7 +43,7 @@ export function AutocompleteDropdown({
   return (
     <div
       className={cn(
-        "absolute z-50 min-w-[240px] max-w-[360px] max-h-[200px] overflow-auto",
+        "absolute z-50 min-w-[240px] max-w-[360px] max-h-[300px] overflow-auto",
         "bg-surface-container border border-outline-variant rounded-md shadow-lg",
         "py-0.5 font-mono text-xs"
       )}
