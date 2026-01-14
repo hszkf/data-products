@@ -124,6 +124,19 @@ export function SchemaBrowser({ type, onTableSelect, refreshKey = 0 }: SchemaBro
           multiDb["Datamart"] = datamartResult.schemas;
         }
 
+        // Save SQL Server schemas with database prefix for autocomplete
+        // Format: { "Staging.dbo": ["Table1", "Table2"], "BI_Backup.dbo": ["Table3"] }
+        const prefixedSchemas: Record<string, string[]> = {};
+        for (const [dbName, dbSchemas] of Object.entries(multiDb)) {
+          for (const [schemaName, tables] of Object.entries(dbSchemas)) {
+            const prefixedKey = `${dbName}.${schemaName}`;
+            prefixedSchemas[prefixedKey] = tables;
+          }
+        }
+        if (Object.keys(prefixedSchemas).length > 0) {
+          saveSchemaToCache("sqlserver", prefixedSchemas);
+        }
+
         setMultiDbSchemas(multiDb);
         setSchemas({});
         setExpandedDbs(new Set());
