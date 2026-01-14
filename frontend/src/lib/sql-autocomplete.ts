@@ -101,22 +101,17 @@ function loadSchemas(database: DatabaseType): { schema: string; table: string; f
   try {
     const cached = localStorage.getItem(SCHEMA_CACHE_KEY);
     if (!cached) {
-      console.log('[Autocomplete] No schema cache found');
       return [];
     }
 
     const parsed: SchemaCache = JSON.parse(cached);
-    console.log('[Autocomplete] Cache found for', database, '-> schemaKey:', schemaKey);
-    console.log('[Autocomplete] Available schema keys:', Object.keys(parsed.data?.schemas || {}));
 
     // Check if we need to refresh memory cache
     if (cachedSchemas[schemaKey] && parsed.timestamp === cacheTimestamps[schemaKey]) {
-      console.log('[Autocomplete] Using memory cache, schemas:', cachedSchemas[schemaKey].length);
       return cachedSchemas[schemaKey];
     }
 
     const schemas = parsed.data?.schemas?.[schemaKey] || {};
-    console.log('[Autocomplete] Schema names:', Object.keys(schemas));
     const result: { schema: string; table: string; fullName: string }[] = [];
 
     for (const [schemaName, tables] of Object.entries(schemas)) {
@@ -128,8 +123,6 @@ function loadSchemas(database: DatabaseType): { schema: string; table: string; f
         });
       }
     }
-
-    console.log('[Autocomplete] Loaded', result.length, 'tables for', database);
 
     // Update memory cache
     cachedSchemas[schemaKey] = result;
@@ -345,11 +338,9 @@ export function getSuggestions(
   database: DatabaseType
 ): AutocompleteSuggestion[] {
   const { word } = getCurrentWord(text, cursorPosition);
-  console.log('[Autocomplete] getSuggestions called - word:', word, 'database:', database);
 
   // Need at least 2 characters to trigger (or pattern with dot)
   if (!word || (word.length < 2 && !word.includes('.'))) {
-    console.log('[Autocomplete] Word too short, skipping');
     return [];
   }
 
