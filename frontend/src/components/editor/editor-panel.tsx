@@ -1000,7 +1000,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
                         clearHistory(type);
                         setQueryHistory([]);
                       }}
-                      className="text-[10px] text-on-surface-variant hover:text-red-400 transition-colors"
+                      className="text-[10px] text-on-surface-variant hover:text-red-600 dark:hover:text-red-400 transition-colors"
                     >
                       Clear All
                     </button>
@@ -1024,9 +1024,9 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
                     >
                       <div className="flex items-center gap-2 w-full">
                         {entry.success ? (
-                          <CheckCircle className="w-3 h-3 text-green-400 flex-shrink-0" />
+                          <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400 flex-shrink-0" />
                         ) : (
-                          <XCircle className="w-3 h-3 text-red-400 flex-shrink-0" />
+                          <XCircle className="w-3 h-3 text-red-600 dark:text-red-400 flex-shrink-0" />
                         )}
                         <code className="text-[11px] font-mono text-on-surface truncate flex-1">
                           {entry.query.length > 60 ? entry.query.slice(0, 60) + "..." : entry.query}
@@ -1153,7 +1153,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem onClick={handleExplorerUpload}>
-                    <Upload className="w-4 h-4 mr-2 text-green-400" />
+                    <Upload className="w-4 h-4 mr-2 text-green-600 dark:text-green-400" />
                     Upload CSV/Excel
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleRefreshSchema}>
@@ -1161,7 +1161,7 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
                     Refresh Schema
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleClearSchemaCache} disabled={isClearingCache}>
-                    <Trash2 className="w-4 h-4 mr-2 text-amber-400" />
+                    <Trash2 className="w-4 h-4 mr-2 text-amber-600 dark:text-amber-400" />
                     Clear Cache
                   </DropdownMenuItem>
                 </DropdownMenuContent>

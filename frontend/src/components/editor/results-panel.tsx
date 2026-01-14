@@ -391,7 +391,7 @@ export function ResultsPanel({ result, colorScheme, errorLine, queryText }: Resu
                         </td>
                         <td className={cn(
                           "px-3 py-1 font-mono text-[11px] whitespace-nowrap",
-                          colorScheme === "redshift" ? "text-redshift" : "text-sqlserver"
+                          colorScheme === "redshift" ? "text-amber-600 dark:text-redshift" : "text-blue-600 dark:text-sqlserver"
                         )}>
                           {columnTypes[column] || "UNKNOWN"}
                         </td>
@@ -412,11 +412,11 @@ export function ResultsPanel({ result, colorScheme, errorLine, queryText }: Resu
         <TabsContent value="messages" className="flex-1 overflow-auto m-0">
           {result?.error ? (
             <div className="p-3">
-              <div className="rounded-lg bg-red-500/10 border border-red-500/30 p-3">
+              <div className="rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 p-3">
                 <div className="flex items-start gap-2">
-                  <div className="flex-shrink-0 w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center">
+                  <div className="flex-shrink-0 w-5 h-5 rounded-full bg-red-100 dark:bg-red-500/20 flex items-center justify-center">
                     <svg
-                      className="w-3.5 h-3.5 text-red-400"
+                      className="w-3.5 h-3.5 text-red-600 dark:text-red-400"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -430,18 +430,18 @@ export function ResultsPanel({ result, colorScheme, errorLine, queryText }: Resu
                     </svg>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-xs font-semibold text-red-400 mb-1">
+                    <h4 className="text-xs font-semibold text-red-700 dark:text-red-400 mb-1">
                       Query Error{errorLine ? ` (Line ${errorLine})` : ''}
                     </h4>
                     {errorLineContent && (
-                      <div className="mb-2 p-1.5 bg-red-500/20 border border-red-500/40 rounded">
-                        <div className="text-[9px] text-red-300 mb-0.5 font-semibold">Error Line:</div>
-                        <code className="text-[11px] text-red-100 font-mono">
+                      <div className="mb-2 p-1.5 bg-red-100 dark:bg-red-500/20 border border-red-300 dark:border-red-500/40 rounded">
+                        <div className="text-[9px] text-red-600 dark:text-red-300 mb-0.5 font-semibold">Error Line:</div>
+                        <code className="text-[11px] text-red-800 dark:text-red-100 font-mono">
                           {errorLineContent}
                         </code>
                       </div>
                     )}
-                    <pre className="text-[11px] text-red-200 font-mono whitespace-pre-wrap break-words">
+                    <pre className="text-[11px] text-red-700 dark:text-red-200 font-mono whitespace-pre-wrap break-words">
                       {result.error}
                     </pre>
                   </div>
@@ -452,20 +452,20 @@ export function ResultsPanel({ result, colorScheme, errorLine, queryText }: Resu
             <div className="p-3">
               <div className={cn(
                 "rounded-lg border p-3",
-                colorScheme === "redshift" && "bg-redshift/10 border-redshift/30",
-                colorScheme === "sqlserver" && "bg-sqlserver/10 border-sqlserver/30"
+                colorScheme === "redshift" && "bg-amber-50 dark:bg-redshift/10 border-amber-200 dark:border-redshift/30",
+                colorScheme === "sqlserver" && "bg-blue-50 dark:bg-sqlserver/10 border-blue-200 dark:border-sqlserver/30"
               )}>
                 <div className="flex items-start gap-2">
                   <div className={cn(
                     "flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center",
-                    colorScheme === "redshift" && "bg-redshift/20",
-                    colorScheme === "sqlserver" && "bg-sqlserver/20"
+                    colorScheme === "redshift" && "bg-amber-100 dark:bg-redshift/20",
+                    colorScheme === "sqlserver" && "bg-blue-100 dark:bg-sqlserver/20"
                   )}>
                     <svg
                       className={cn(
                         "w-3.5 h-3.5",
-                        colorScheme === "redshift" && "text-redshift",
-                        colorScheme === "sqlserver" && "text-sqlserver"
+                        colorScheme === "redshift" && "text-amber-600 dark:text-redshift",
+                        colorScheme === "sqlserver" && "text-blue-600 dark:text-sqlserver"
                       )}
                       fill="none"
                       viewBox="0 0 24 24"
@@ -482,8 +482,8 @@ export function ResultsPanel({ result, colorScheme, errorLine, queryText }: Resu
                   <div className="flex-1 min-w-0">
                     <h4 className={cn(
                       "text-xs font-semibold mb-1",
-                      colorScheme === "redshift" && "text-redshift",
-                      colorScheme === "sqlserver" && "text-sqlserver"
+                      colorScheme === "redshift" && "text-amber-700 dark:text-redshift",
+                      colorScheme === "sqlserver" && "text-blue-700 dark:text-sqlserver"
                     )}>
                       Message
                     </h4>

@@ -877,20 +877,20 @@ function MessagesPanel({ error, message, source }: { error?: string; message?: s
   return (
     <div className="p-4 space-y-3">
       {error && (
-        <div className="flex items-start gap-3 p-3 rounded-lg bg-red-500/5 border border-red-500/20">
-          <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20">
+          <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-500 flex-shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <h4 className="text-[11px] font-semibold text-red-500 mb-1">Error</h4>
-            <pre className="text-[10px] text-red-400 whitespace-pre-wrap break-words">{error}</pre>
+            <h4 className="text-[11px] font-semibold text-red-700 dark:text-red-500 mb-1">Error</h4>
+            <pre className="text-[10px] text-red-600 dark:text-red-400 whitespace-pre-wrap break-words">{error}</pre>
           </div>
         </div>
       )}
       {message && (
-        <div className="flex items-start gap-3 p-3 rounded-lg bg-green-500/5 border border-green-500/20">
-          <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-500/5 border border-green-200 dark:border-green-500/20">
+          <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-500 flex-shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <h4 className="text-[11px] font-semibold text-green-500 mb-1">Success</h4>
-            <p className="text-[10px] text-green-400">{message}</p>
+            <h4 className="text-[11px] font-semibold text-green-700 dark:text-green-500 mb-1">Success</h4>
+            <p className="text-[10px] text-green-600 dark:text-green-400">{message}</p>
             {source && <p className="text-[9px] text-on-surface-variant mt-1">Source: {source}</p>}
           </div>
         </div>
