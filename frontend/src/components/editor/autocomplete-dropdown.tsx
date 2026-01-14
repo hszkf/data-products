@@ -2,9 +2,11 @@
  * Autocomplete Dropdown Component
  *
  * Displays SQL keywords, schemas, tables, and column suggestions.
+ * Uses a portal to render above all other elements.
  */
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { cn } from "~/lib/utils";
 import { Database, FolderTree, Columns, Code } from "lucide-react";
 import type { AutocompleteSuggestion } from "~/lib/sql-autocomplete";
@@ -15,6 +17,9 @@ interface AutocompleteDropdownProps {
   onSelect: (suggestion: AutocompleteSuggestion) => void;
   position: { top: number; left: number };
   visible: boolean;
+  maxHeight?: number;
+  containerHeight?: number;
+  editorRef?: React.RefObject<HTMLDivElement>;
 }
 
 export function AutocompleteDropdown({
@@ -23,8 +28,32 @@ export function AutocompleteDropdown({
   onSelect,
   position,
   visible,
+  maxHeight = 200,
+  containerHeight,
+  editorRef,
 }: AutocompleteDropdownProps) {
   const listRef = React.useRef<HTMLDivElement>(null);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Calculate absolute screen position from editor ref
+  const absolutePosition = React.useMemo(() => {
+    if (!editorRef?.current) {
+      return { top: position.top, left: position.left };
+    }
+    const rect = editorRef.current.getBoundingClientRect();
+    return {
+      top: rect.top + position.top,
+      left: rect.left + position.left,
+    };
+  }, [editorRef, position.top, position.left]);
+
+  // Calculate if dropdown should flip above cursor
+  const shouldFlipUp = React.useMemo(() => {
+    // Check against viewport height
+    const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 1000;
+    const spaceBelow = viewportHeight - absolutePosition.top;
+    return spaceBelow < maxHeight && absolutePosition.top > maxHeight;
+  }, [absolutePosition.top, maxHeight]);
 
   // Scroll selected item into view
   React.useEffect(() => {
@@ -40,16 +69,21 @@ export function AutocompleteDropdown({
     return null;
   }
 
-  return (
+  // Calculate actual top position
+  const actualTop = shouldFlipUp ? absolutePosition.top - maxHeight - 24 : absolutePosition.top;
+
+  const dropdown = (
     <div
+      ref={dropdownRef}
       className={cn(
-        "absolute z-50 min-w-[240px] max-w-[360px] max-h-[300px] overflow-auto",
+        "fixed z-[9999] min-w-[240px] max-w-[360px] overflow-auto",
         "bg-surface-container border border-outline-variant rounded-md shadow-lg",
         "py-0.5 font-mono text-xs"
       )}
       style={{
-        top: position.top,
-        left: position.left,
+        top: Math.max(0, actualTop),
+        left: absolutePosition.left,
+        maxHeight: maxHeight,
       }}
     >
       <div ref={listRef}>
@@ -67,6 +101,8 @@ export function AutocompleteDropdown({
             {/* Icon */}
             {suggestion.type === "keyword" ? (
               <Code className="w-3 h-3 text-purple-400 flex-shrink-0" />
+            ) : suggestion.type === "database" ? (
+              <Database className="w-3 h-3 text-sqlserver flex-shrink-0" />
             ) : suggestion.type === "schema" ? (
               <FolderTree className="w-3 h-3 text-amber-400 flex-shrink-0" />
             ) : suggestion.type === "column" ? (
@@ -94,4 +130,11 @@ export function AutocompleteDropdown({
       </div>
     </div>
   );
+
+  // Use portal to render at body level, above all other elements
+  if (typeof document !== 'undefined') {
+    return createPortal(dropdown, document.body);
+  }
+
+  return dropdown;
 }

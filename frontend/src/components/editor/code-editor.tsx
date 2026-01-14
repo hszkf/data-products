@@ -33,14 +33,28 @@ export function CodeEditor({
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = React.useRef<HTMLDivElement>(null);
   const highlightRef = React.useRef<HTMLPreElement>(null);
+  const editorContainerRef = React.useRef<HTMLDivElement>(null);
 
   // Autocomplete state
   const [suggestions, setSuggestions] = React.useState<AutocompleteSuggestion[]>([]);
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const [showAutocomplete, setShowAutocomplete] = React.useState(false);
   const [autocompletePosition, setAutocompletePosition] = React.useState({ top: 0, left: 0 });
+  const [editorHeight, setEditorHeight] = React.useState(0);
   const shouldRetriggerRef = React.useRef(false);
   const skipBlurCloseRef = React.useRef(false);
+
+  // Track editor container height for dropdown positioning
+  React.useEffect(() => {
+    const updateHeight = () => {
+      if (editorContainerRef.current) {
+        setEditorHeight(editorContainerRef.current.clientHeight);
+      }
+    };
+    updateHeight();
+    window.addEventListener('resize', updateHeight);
+    return () => window.removeEventListener('resize', updateHeight);
+  }, []);
 
   const lineCount = React.useMemo(() => {
     return Math.max(value.split("\n").length, 1);
@@ -60,17 +74,21 @@ export function CodeEditor({
 
   // Track pending column fetch to avoid duplicate requests
   const pendingFetchRef = React.useRef<string | null>(null);
+  // Debounce timer ref
+  const autocompleteTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // Update autocomplete suggestions
   const updateAutocomplete = React.useCallback(async () => {
     if (!textareaRef.current) return;
 
     const textarea = textareaRef.current;
+    // Use current textarea value directly to avoid stale closure issues
+    const currentValue = textarea.value;
     const cursorPos = textarea.selectionStart;
-    const { word } = getCurrentWord(value, cursorPos);
+    const { word } = getCurrentWord(currentValue, cursorPos);
 
     // Calculate position for dropdown relative to cursor
-    const textBeforeCursor = value.substring(0, cursorPos);
+    const textBeforeCursor = currentValue.substring(0, cursorPos);
     const lines = textBeforeCursor.split("\n");
     const currentLine = lines.length;
     const currentColumn = lines[lines.length - 1].length;
@@ -86,24 +104,28 @@ export function CodeEditor({
     const left = gutterWidth + (currentColumn * charWidth) - textarea.scrollLeft;
 
     // Get sync suggestions first
-    let newSuggestions = getSuggestions(value, cursorPos, colorScheme);
+    let newSuggestions = getSuggestions(currentValue, cursorPos, colorScheme);
 
     // If no suggestions but we're in column context, try to fetch columns
-    if (newSuggestions.length === 0 && colorScheme === "redshift") {
-      const columnCtx = isColumnContext(word);
+    if (newSuggestions.length === 0) {
+      const columnCtx = isColumnContext(word, colorScheme);
       if (columnCtx) {
-        const fetchKey = `${columnCtx.schema}.${columnCtx.table}`;
+        // Use dbType from context for SQL Server, or colorScheme for Redshift
+        const dbTypeForFetch = columnCtx.dbType || colorScheme;
+        const fetchKey = `${dbTypeForFetch}:${columnCtx.schema}.${columnCtx.table}`;
 
         // Avoid duplicate fetches
         if (pendingFetchRef.current !== fetchKey) {
           pendingFetchRef.current = fetchKey;
 
-          // Fetch columns async
-          await fetchTableColumns(columnCtx.schema, columnCtx.table);
+          // Fetch columns async (pass correct database type)
+          await fetchTableColumns(columnCtx.schema, columnCtx.table, dbTypeForFetch);
           pendingFetchRef.current = null;
 
-          // Re-get suggestions now that columns are cached
-          newSuggestions = getSuggestions(value, cursorPos, colorScheme);
+          // Re-get suggestions now that columns are cached (use fresh value)
+          const freshValue = textareaRef.current?.value || currentValue;
+          const freshCursorPos = textareaRef.current?.selectionStart || cursorPos;
+          newSuggestions = getSuggestions(freshValue, freshCursorPos, colorScheme);
         }
       }
     }
@@ -116,7 +138,7 @@ export function CodeEditor({
     } else {
       setShowAutocomplete(false);
     }
-  }, [value, colorScheme]);
+  }, [colorScheme]);
 
   // Re-trigger autocomplete after schema selection (when value updates)
   React.useEffect(() => {
@@ -171,8 +193,14 @@ export function CodeEditor({
   const handleInput = React.useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       onChange(e.target.value);
-      // Trigger autocomplete update after a short delay
-      setTimeout(updateAutocomplete, 50);
+      // Debounce autocomplete - cancel previous timer and start new one
+      if (autocompleteTimerRef.current) {
+        clearTimeout(autocompleteTimerRef.current);
+      }
+      autocompleteTimerRef.current = setTimeout(() => {
+        updateAutocomplete();
+        autocompleteTimerRef.current = null;
+      }, 100);
     },
     [onChange, updateAutocomplete]
   );
@@ -381,7 +409,7 @@ export function CodeEditor({
   }, [value, onCursorChange]);
 
   return (
-    <div className="flex-1 relative overflow-hidden">
+    <div ref={editorContainerRef} className="flex-1 relative overflow-hidden">
       <div className="absolute inset-0 flex">
         {/* Line Numbers */}
         <div
@@ -465,6 +493,9 @@ export function CodeEditor({
             onSelect={handleAutocompleteSelect}
             position={autocompletePosition}
             visible={showAutocomplete}
+            containerHeight={editorHeight}
+            maxHeight={200}
+            editorRef={editorContainerRef}
           />
         </div>
       </div>
