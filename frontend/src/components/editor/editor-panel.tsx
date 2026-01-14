@@ -613,9 +613,9 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
 
         // Create the result object
         const queryResult: QueryResult = {
-          columns: queryResponse.columns,
-          rows: queryResponse.rows,
-          executionTime: queryResponse.executionTime,
+          columns: queryResponse.columns || [],
+          rows: queryResponse.rows || [],
+          executionTime: queryResponse.executionTime || 0,
           message: queryResponse.message,
         };
 
