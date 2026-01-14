@@ -6,7 +6,7 @@
  * Supports both Redshift and SQL Server databases.
  */
 
-import { executeQuery } from "./api";
+import { executeQuery, getSchemas } from "./api";
 
 export type DatabaseType = "redshift" | "sqlserver" | "sqlserver-bi-backup" | "sqlserver-datamart";
 
@@ -632,4 +632,78 @@ export function isColumnContext(word: string, database: DatabaseType): { schema:
     }
   }
   return null;
+}
+
+/**
+ * Preload schemas from all databases into localStorage cache.
+ * This allows autocomplete to work without opening the Explorer panel.
+ * Call this on app/editor mount.
+ */
+export async function preloadSchemas(): Promise<void> {
+  if (typeof window === 'undefined') return;
+
+  // Check if we already have cached schemas (not expired)
+  try {
+    const cached = localStorage.getItem(SCHEMA_CACHE_KEY);
+    if (cached) {
+      const parsed: SchemaCache = JSON.parse(cached);
+      const SCHEMA_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days (same as schema-browser)
+      if (Date.now() - parsed.timestamp < SCHEMA_CACHE_TTL) {
+        // Cache is still valid, skip preload
+        return;
+      }
+    }
+  } catch {
+    // Cache invalid, proceed to fetch
+  }
+
+  // Fetch schemas from all databases in parallel
+  try {
+    const [redshiftResult, stagingResult, biBackupResult, datamartResult] = await Promise.all([
+      getSchemas("redshift"),
+      getSchemas("sqlserver"),
+      getSchemas("sqlserver-bi-backup"),
+      getSchemas("sqlserver-datamart"),
+    ]);
+
+    // Build SQL Server schemas with database prefix for autocomplete
+    // Format: { "Staging.dbo": ["Table1", "Table2"], "BI_Backup.dbo": ["Table3"] }
+    const sqlserverPrefixed: Record<string, string[]> = {};
+
+    if (stagingResult.schemas && Object.keys(stagingResult.schemas).length > 0) {
+      for (const [schemaName, tables] of Object.entries(stagingResult.schemas)) {
+        sqlserverPrefixed[`Staging.${schemaName}`] = tables;
+      }
+    }
+    if (biBackupResult.schemas && Object.keys(biBackupResult.schemas).length > 0) {
+      for (const [schemaName, tables] of Object.entries(biBackupResult.schemas)) {
+        sqlserverPrefixed[`BI_Backup.${schemaName}`] = tables;
+      }
+    }
+    if (datamartResult.schemas && Object.keys(datamartResult.schemas).length > 0) {
+      for (const [schemaName, tables] of Object.entries(datamartResult.schemas)) {
+        sqlserverPrefixed[`Datamart.${schemaName}`] = tables;
+      }
+    }
+
+    // Save to localStorage cache
+    const cache: SchemaCache = {
+      data: {
+        schemas: {
+          redshift: redshiftResult.schemas || {},
+          sqlserver: sqlserverPrefixed,
+        },
+      },
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(SCHEMA_CACHE_KEY, JSON.stringify(cache));
+
+    // Clear memory cache to force reload from localStorage
+    delete cachedSchemas["redshift"];
+    delete cachedSchemas["sqlserver"];
+    delete cacheTimestamps["redshift"];
+    delete cacheTimestamps["sqlserver"];
+  } catch (error) {
+    console.warn('[Autocomplete] Failed to preload schemas:', error);
+  }
 }

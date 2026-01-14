@@ -38,6 +38,7 @@ import {
   type QueryHistoryEntry,
 } from "~/lib/query-history";
 import { formatSql } from "~/lib/sql-formatter";
+import { preloadSchemas } from "~/lib/sql-autocomplete";
 
 export type DatabaseType = "redshift" | "sqlserver" | "sqlserver-bi-backup" | "sqlserver-datamart";
 
@@ -480,6 +481,11 @@ export function EditorPanel({ type, defaultQuery = "" }: EditorPanelProps) {
       mounted = false;
     };
   }, [effectiveDbType]);
+
+  // Preload schemas for autocomplete on mount (runs once)
+  React.useEffect(() => {
+    preloadSchemas();
+  }, []);
 
   // Ref to track editor container for resize calculations
   const editorContainerRef = React.useRef<HTMLDivElement>(null);
