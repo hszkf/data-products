@@ -69,13 +69,21 @@ export function CodeEditor({
     const cursorPos = textarea.selectionStart;
     const { word } = getCurrentWord(value, cursorPos);
 
-    // Calculate position for dropdown (do this early)
+    // Calculate position for dropdown relative to cursor
     const textBeforeCursor = value.substring(0, cursorPos);
     const lines = textBeforeCursor.split("\n");
     const currentLine = lines.length;
     const currentColumn = lines[lines.length - 1].length;
-    const top = 12 + currentLine * 20;
-    const left = 44 + Math.min(currentColumn * 8, 300);
+
+    // Account for scroll position and use accurate measurements
+    const lineHeight = 20;
+    const charWidth = 8.4; // Approximate monospace character width
+    const gutterWidth = 44; // Line numbers gutter
+    const paddingTop = 12;
+
+    // Position below the current line, accounting for scroll
+    const top = paddingTop + (currentLine * lineHeight) - textarea.scrollTop;
+    const left = gutterWidth + (currentColumn * charWidth) - textarea.scrollLeft;
 
     // Get sync suggestions first
     let newSuggestions = getSuggestions(value, cursorPos, colorScheme);
