@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useState, useEffect } from "react";
 import { JobsProvider, useJobs } from "~/components/jobs/JobsProvider";
+import { formatMYDateShort, formatMYTime } from "~/lib/date-utils";
 import { WorkflowBuilder } from "~/components/jobs/WorkflowBuilder";
 import { ToastProvider, useToast } from "~/components/ui/toast-provider";
 import { ThemeProvider } from "~/lib/theme-context";
@@ -354,8 +355,7 @@ function NewJobPageContent() {
                             className="inline-flex items-center gap-1.5 px-2 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs font-mono text-amber-400"
                           >
                             <Timer className="w-3 h-3" />
-                            {new Date(time).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}{' '}
-                            {new Date(time).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                            {formatMYDateShort(time)} {formatMYTime(time)}
                           </span>
                         ))}
                       </div>

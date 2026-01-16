@@ -19,6 +19,7 @@ import {
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
+import { formatMYDateTime } from '~/lib/date-utils';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
@@ -307,7 +308,7 @@ function AdminLogsPage() {
                       className="border-b border-outline-variant/50 hover:bg-surface-container/30"
                     >
                       <td className="py-3 px-4 whitespace-nowrap">
-                        {new Date(log.timestamp).toLocaleString()}
+                        {formatMYDateTime(log.timestamp)}
                       </td>
                       <td className="py-3 px-4">
                         <div>

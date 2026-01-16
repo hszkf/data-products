@@ -10,6 +10,7 @@ import {
   Terminal,
   MessageSquare,
 } from "lucide-react";
+import { formatMYDateTime } from "~/lib/date-utils";
 
 interface ScheduleBuilderProps {
   cronExpression?: string;
@@ -174,7 +175,7 @@ export function ScheduleBuilder({
 
     for (let i = 0; i < count; i++) {
       const nextRun = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
-      runs.push(nextRun.toLocaleString());
+      runs.push(formatMYDateTime(nextRun));
     }
 
     return runs;

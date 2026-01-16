@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Job, formatSchedule } from "~/lib/jobs-api";
 import { Button } from "~/components/ui/button";
+import { formatMYDateTime } from "~/lib/date-utils";
 import {
   Play,
   Pause,
@@ -132,14 +133,14 @@ export function JobsList({
                 {job.is_active && job.next_run_time && (
                   <span className="flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5" />
-                    Next: {new Date(job.next_run_time).toLocaleString()}
+                    Next: {formatMYDateTime(job.next_run_time)}
                   </span>
                 )}
 
                 {/* Last run time */}
                 {job.last_run_time && (
                   <span>
-                    Last run: {new Date(job.last_run_time).toLocaleString()}
+                    Last run: {formatMYDateTime(job.last_run_time)}
                   </span>
                 )}
               </div>

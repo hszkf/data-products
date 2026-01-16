@@ -5,6 +5,7 @@ import { X, Clock, Play, Calendar, AlertCircle, Loader2 } from "lucide-react";
 import { ScheduleBuilder } from "./ScheduleBuilder";
 import { useJobs } from "./JobsProvider";
 import { Job, previewSchedule } from "~/lib/jobs-api";
+import { formatMYDateTime } from "~/lib/date-utils";
 
 interface ScheduleModalProps {
   isOpen: boolean;
@@ -212,7 +213,7 @@ export function ScheduleModal({ isOpen, onClose, job }: ScheduleModalProps) {
                       {index + 1}
                     </span>
                     <span className="font-mono">
-                      {new Date(run).toLocaleString()}
+                      {formatMYDateTime(run)}
                     </span>
                   </div>
                 ))}

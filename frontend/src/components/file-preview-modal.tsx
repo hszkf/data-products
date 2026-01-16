@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, ChevronLeft, ChevronRight, Download, Maximize2, Minimize2 } from 'lucide-react';
 import { getDownloadUrl } from '~/lib/storage-api';
 import type { StorageFile } from '~/lib/storage-api';
+import { formatMYDateTime } from '~/lib/date-utils';
 
 interface FilePreviewModalProps {
   file: StorageFile | null;
@@ -291,7 +292,7 @@ export default function FilePreviewModal({
         {/* Footer info */}
         <div className="p-4 border-t border-outline-variant text-sm text-on-surface-variant">
           <div className="flex justify-between">
-            <span>Modified: {new Date(file.last_modified).toLocaleString()}</span>
+            <span>Modified: {formatMYDateTime(file.last_modified)}</span>
             <span>Press Esc to close, ← → to navigate</span>
           </div>
         </div>

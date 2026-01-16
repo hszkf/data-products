@@ -20,6 +20,7 @@ import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Label } from '~/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
+import { formatMYDateTime } from '~/lib/date-utils';
 import {
   listUsers,
   createUser,
@@ -185,7 +186,7 @@ function AdminUsersPage() {
                     </td>
                     <td className="py-3 px-4 text-sm text-on-surface-variant">
                       {user.last_login
-                        ? new Date(user.last_login).toLocaleDateString()
+                        ? formatMYDateTime(user.last_login)
                         : 'Never'}
                     </td>
                     <td className="py-3 px-4">

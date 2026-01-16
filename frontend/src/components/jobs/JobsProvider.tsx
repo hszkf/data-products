@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useSyncExternalStore } from "react";
+import { formatMYDateTime } from "~/lib/date-utils";
 import {
   Job,
   JobExecution,
@@ -23,6 +24,11 @@ import {
   ScheduleJobRequest,
   ScheduleType,
   ScheduleConfig,
+  // SQL Server Agent Jobs
+  getAgentJobs,
+  agentJobToJob,
+  startAgentJob,
+  stopAgentJob,
 } from "~/lib/jobs-api";
 import { useToast } from "~/components/ui/toast-provider";
 
@@ -108,9 +114,27 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true);
       setError(null);
       try {
-        const result = await getJobs(params);
+        // Fetch both internal jobs and SQL Server Agent jobs in parallel
+        const [internalResult, agentResult] = await Promise.allSettled([
+          getJobs(params),
+          getAgentJobs(), // Fetch all agent jobs (pagination handled on frontend)
+        ]);
+
+        let allJobs: Job[] = [];
+
+        // Add internal jobs if successful
+        if (internalResult.status === 'fulfilled') {
+          allJobs = [...(internalResult.value.jobs || [])];
+        }
+
+        // Add agent jobs if successful (converted to Job format)
+        if (agentResult.status === 'fulfilled' && agentResult.value.jobs) {
+          const convertedAgentJobs = agentResult.value.jobs.map(agentJobToJob);
+          allJobs = [...allJobs, ...convertedAgentJobs];
+        }
+
         if (isMountedRef.current) {
-          setJobs(result.jobs || []);
+          setJobs(allJobs);
         }
       } catch (e) {
         const message = e instanceof Error ? e.message : "Failed to load jobs";
@@ -244,10 +268,24 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
   const triggerJob = useCallback(
     async (jobId: string): Promise<{ success: boolean; executionId?: string }> => {
       try {
-        const result = await runJob(jobId);
-        showToast("Job execution started", "success");
-        await loadJobs();
-        return { success: true, executionId: result.execution_id };
+        // Check if this is an agent job by looking it up in current jobs
+        const job = jobs.find(j => j.id === jobId);
+        const isAgentJob = job && (job as any)._isAgentJob;
+
+        if (isAgentJob) {
+          // Use SQL Server Agent job start endpoint
+          const agentJobName = (job as any)._agentJobName;
+          await startAgentJob(agentJobName);
+          showToast("SQL Server Agent job started", "success");
+          await loadJobs();
+          return { success: true };
+        } else {
+          // Use internal job run endpoint
+          const result = await runJob(jobId);
+          showToast("Job execution started", "success");
+          await loadJobs();
+          return { success: true, executionId: result.execution_id };
+        }
       } catch (e) {
         const message = e instanceof Error ? e.message : "Failed to start job";
         const isAlreadyRunning = message.toLowerCase().includes("already running");
@@ -259,14 +297,24 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
         return { success: false };
       }
     },
-    [loadJobs, showToast]
+    [jobs, loadJobs, showToast]
   );
 
   const stopJob = useCallback(
     async (jobId: string): Promise<boolean> => {
       try {
-        await cancelJob(jobId);
-        showToast("Job cancellation requested", "info");
+        // Check if this is an agent job
+        const job = jobs.find(j => j.id === jobId);
+        const isAgentJob = job && (job as any)._isAgentJob;
+
+        if (isAgentJob) {
+          const agentJobName = (job as any)._agentJobName;
+          await stopAgentJob(agentJobName);
+          showToast("SQL Server Agent job stopped", "info");
+        } else {
+          await cancelJob(jobId);
+          showToast("Job cancellation requested", "info");
+        }
         await loadJobs();
         return true;
       } catch (e) {
@@ -275,7 +323,7 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
     },
-    [loadJobs, showToast]
+    [jobs, loadJobs, showToast]
   );
 
   const loadExecutions = useCallback(
@@ -312,7 +360,7 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
         const request: ScheduleJobRequest = { schedule_type: scheduleType, schedule_config: scheduleConfig, enabled };
         const result = await scheduleJob(jobId, request);
         if (enabled && result.next_run_time) {
-          showToast(`Job scheduled. Next run: ${new Date(result.next_run_time).toLocaleString()}`, "success");
+          showToast(`Job scheduled. Next run: ${formatMYDateTime(result.next_run_time)}`, "success");
         } else if (!enabled) {
           showToast("Schedule updated but job is inactive", "info");
         } else {
@@ -407,9 +455,25 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
         }
 
         try {
-          const result = await getJobs();
+          // Fetch both internal jobs and SQL Server Agent jobs in parallel
+          const [internalResult, agentResult] = await Promise.allSettled([
+            getJobs(),
+            getAgentJobs(), // Fetch all agent jobs
+          ]);
+
+          let allJobs: Job[] = [];
+
+          if (internalResult.status === 'fulfilled') {
+            allJobs = [...(internalResult.value.jobs || [])];
+          }
+
+          if (agentResult.status === 'fulfilled' && agentResult.value.jobs) {
+            const convertedAgentJobs = agentResult.value.jobs.map(agentJobToJob);
+            allJobs = [...allJobs, ...convertedAgentJobs];
+          }
+
           if (isMountedRef.current) {
-            setJobs(result.jobs || []);
+            setJobs(allJobs);
           }
         } catch (e) {
           console.warn("Polling failed:", e);

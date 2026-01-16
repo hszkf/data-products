@@ -13,7 +13,7 @@ interface CustomSelectProps {
   options: Option[];
   placeholder?: string;
   className?: string;
-  accentColor?: "cyan" | "emerald" | "amber" | "violet";
+  accentColor?: "cyan" | "emerald" | "amber" | "violet" | "pink";
 }
 
 export function CustomSelect({
@@ -49,6 +49,11 @@ export function CustomSelect({
       focus: "border-violet-500/50 ring-violet-500/20",
       selected: "bg-violet-500/20 text-violet-400",
       hover: "hover:bg-violet-500/10",
+    },
+    pink: {
+      focus: "border-pink-500/50 ring-pink-500/20",
+      selected: "bg-pink-500/20 text-pink-400",
+      hover: "hover:bg-pink-500/10",
     },
   };
 

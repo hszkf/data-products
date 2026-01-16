@@ -21,9 +21,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as JobsIndexRouteImport } from './routes/jobs.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as JobsNewRouteImport } from './routes/jobs.new'
+import { Route as JobsExecutionhistoryRouteImport } from './routes/jobs.executionhistory'
 import { Route as JobsJobIdRouteImport } from './routes/jobs.$jobId'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminLogsRouteImport } from './routes/admin.logs'
+import { Route as JobsAgentNewRouteImport } from './routes/jobs.agent.new'
 import { Route as JobsJobIdEditRouteImport } from './routes/jobs.$jobId.edit'
 
 const StorageRoute = StorageRouteImport.update({
@@ -86,6 +88,11 @@ const JobsNewRoute = JobsNewRouteImport.update({
   path: '/new',
   getParentRoute: () => JobsRoute,
 } as any)
+const JobsExecutionhistoryRoute = JobsExecutionhistoryRouteImport.update({
+  id: '/executionhistory',
+  path: '/executionhistory',
+  getParentRoute: () => JobsRoute,
+} as any)
 const JobsJobIdRoute = JobsJobIdRouteImport.update({
   id: '/$jobId',
   path: '/$jobId',
@@ -100,6 +107,11 @@ const AdminLogsRoute = AdminLogsRouteImport.update({
   id: '/logs',
   path: '/logs',
   getParentRoute: () => AdminRoute,
+} as any)
+const JobsAgentNewRoute = JobsAgentNewRouteImport.update({
+  id: '/agent/new',
+  path: '/agent/new',
+  getParentRoute: () => JobsRoute,
 } as any)
 const JobsJobIdEditRoute = JobsJobIdEditRouteImport.update({
   id: '/edit',
@@ -120,10 +132,12 @@ export interface FileRoutesByFullPath {
   '/admin/logs': typeof AdminLogsRoute
   '/admin/users': typeof AdminUsersRoute
   '/jobs/$jobId': typeof JobsJobIdRouteWithChildren
+  '/jobs/executionhistory': typeof JobsExecutionhistoryRoute
   '/jobs/new': typeof JobsNewRoute
   '/admin/': typeof AdminIndexRoute
   '/jobs/': typeof JobsIndexRoute
   '/jobs/$jobId/edit': typeof JobsJobIdEditRoute
+  '/jobs/agent/new': typeof JobsAgentNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -136,10 +150,12 @@ export interface FileRoutesByTo {
   '/admin/logs': typeof AdminLogsRoute
   '/admin/users': typeof AdminUsersRoute
   '/jobs/$jobId': typeof JobsJobIdRouteWithChildren
+  '/jobs/executionhistory': typeof JobsExecutionhistoryRoute
   '/jobs/new': typeof JobsNewRoute
   '/admin': typeof AdminIndexRoute
   '/jobs': typeof JobsIndexRoute
   '/jobs/$jobId/edit': typeof JobsJobIdEditRoute
+  '/jobs/agent/new': typeof JobsAgentNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -155,10 +171,12 @@ export interface FileRoutesById {
   '/admin/logs': typeof AdminLogsRoute
   '/admin/users': typeof AdminUsersRoute
   '/jobs/$jobId': typeof JobsJobIdRouteWithChildren
+  '/jobs/executionhistory': typeof JobsExecutionhistoryRoute
   '/jobs/new': typeof JobsNewRoute
   '/admin/': typeof AdminIndexRoute
   '/jobs/': typeof JobsIndexRoute
   '/jobs/$jobId/edit': typeof JobsJobIdEditRoute
+  '/jobs/agent/new': typeof JobsAgentNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -175,10 +193,12 @@ export interface FileRouteTypes {
     | '/admin/logs'
     | '/admin/users'
     | '/jobs/$jobId'
+    | '/jobs/executionhistory'
     | '/jobs/new'
     | '/admin/'
     | '/jobs/'
     | '/jobs/$jobId/edit'
+    | '/jobs/agent/new'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -191,10 +211,12 @@ export interface FileRouteTypes {
     | '/admin/logs'
     | '/admin/users'
     | '/jobs/$jobId'
+    | '/jobs/executionhistory'
     | '/jobs/new'
     | '/admin'
     | '/jobs'
     | '/jobs/$jobId/edit'
+    | '/jobs/agent/new'
   id:
     | '__root__'
     | '/'
@@ -209,10 +231,12 @@ export interface FileRouteTypes {
     | '/admin/logs'
     | '/admin/users'
     | '/jobs/$jobId'
+    | '/jobs/executionhistory'
     | '/jobs/new'
     | '/admin/'
     | '/jobs/'
     | '/jobs/$jobId/edit'
+    | '/jobs/agent/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -313,6 +337,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JobsNewRouteImport
       parentRoute: typeof JobsRoute
     }
+    '/jobs/executionhistory': {
+      id: '/jobs/executionhistory'
+      path: '/executionhistory'
+      fullPath: '/jobs/executionhistory'
+      preLoaderRoute: typeof JobsExecutionhistoryRouteImport
+      parentRoute: typeof JobsRoute
+    }
     '/jobs/$jobId': {
       id: '/jobs/$jobId'
       path: '/$jobId'
@@ -333,6 +364,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/logs'
       preLoaderRoute: typeof AdminLogsRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/jobs/agent/new': {
+      id: '/jobs/agent/new'
+      path: '/agent/new'
+      fullPath: '/jobs/agent/new'
+      preLoaderRoute: typeof JobsAgentNewRouteImport
+      parentRoute: typeof JobsRoute
     }
     '/jobs/$jobId/edit': {
       id: '/jobs/$jobId/edit'
@@ -372,14 +410,18 @@ const JobsJobIdRouteWithChildren = JobsJobIdRoute._addFileChildren(
 
 interface JobsRouteChildren {
   JobsJobIdRoute: typeof JobsJobIdRouteWithChildren
+  JobsExecutionhistoryRoute: typeof JobsExecutionhistoryRoute
   JobsNewRoute: typeof JobsNewRoute
   JobsIndexRoute: typeof JobsIndexRoute
+  JobsAgentNewRoute: typeof JobsAgentNewRoute
 }
 
 const JobsRouteChildren: JobsRouteChildren = {
   JobsJobIdRoute: JobsJobIdRouteWithChildren,
+  JobsExecutionhistoryRoute: JobsExecutionhistoryRoute,
   JobsNewRoute: JobsNewRoute,
   JobsIndexRoute: JobsIndexRoute,
+  JobsAgentNewRoute: JobsAgentNewRoute,
 }
 
 const JobsRouteWithChildren = JobsRoute._addFileChildren(JobsRouteChildren)

@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { ThemeProvider } from "~/lib/theme-context";
 import { ToastProvider } from "~/components/ui/toast-provider";
+import { formatMYTimeWithSeconds, formatMYDateShort } from "~/lib/date-utils";
 import { TooltipProvider } from "~/components/ui/tooltip";
 
 // Simulated real-time data using custom interval hook
@@ -169,11 +170,11 @@ function DashboardContent() {
           <div className="hidden md:flex items-center gap-3 px-4 py-2 rounded-xl bg-neutral-900/50 border border-neutral-800/50">
             <Clock className="w-4 h-4 text-amber-400" />
             <span className="font-terminal text-sm text-neutral-300 tabular-nums">
-              {currentTime.toLocaleTimeString("en-GB", { hour12: false })}
+              {formatMYTimeWithSeconds(currentTime)}
             </span>
             <span className="text-neutral-600">|</span>
             <span className="font-terminal text-xs text-neutral-500">
-              {currentTime.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+              {formatMYDateShort(currentTime)}
             </span>
           </div>
 

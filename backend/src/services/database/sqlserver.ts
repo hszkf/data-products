@@ -1,12 +1,30 @@
 import sql from 'mssql';
 
-// SQL Server connection configuration
+// Parse domain\username format for NTLM authentication
+const userParts = (process.env.SQLSERVER_USER || '').split('\\');
+const hasDomain = userParts.length === 2;
+const domain = hasDomain ? userParts[0] : undefined;
+const userName = hasDomain ? userParts[1] : process.env.SQLSERVER_USER || 'ssis_admin';
+
+// SQL Server connection configuration with NTLM support
 const config: sql.config = {
-  user: process.env.SQLSERVER_USER || 'ssis_admin',
-  password: process.env.SQLSERVER_PASSWORD || 'P@55word',
   server: process.env.SQLSERVER_HOST || '10.200.224.42',
   database: process.env.SQLSERVER_DATABASE || 'Staging',
   port: parseInt(process.env.SQLSERVER_PORT || '1433'),
+  // Use NTLM authentication if domain is present
+  authentication: hasDomain
+    ? {
+        type: 'ntlm' as const,
+        options: {
+          domain,
+          userName,
+          password: process.env.SQLSERVER_PASSWORD || '',
+        },
+      }
+    : undefined,
+  // Use standard auth if no domain
+  user: hasDomain ? undefined : userName,
+  password: hasDomain ? undefined : (process.env.SQLSERVER_PASSWORD || 'P@55word'),
   options: {
     encrypt: process.env.SQLSERVER_ENCRYPT === 'true',
     trustServerCertificate: process.env.SQLSERVER_TRUST_CERT !== 'false',
@@ -21,6 +39,9 @@ const config: sql.config = {
   requestTimeout: 3600000,    // 1 hour (max practical value)
   connectionTimeout: 60000,   // 60 seconds for initial connection
 };
+
+// Export the full username for use in job creation
+export const dbUser = process.env.SQLSERVER_USER || 'ssis_admin';
 
 let pool: sql.ConnectionPool | null = null;
 

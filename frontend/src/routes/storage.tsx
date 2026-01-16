@@ -6,6 +6,7 @@ export const Route = createFileRoute('/storage')({
 
 import { useState, useRef, useCallback, useSyncExternalStore } from "react";
 import { Link } from "@tanstack/react-router";
+import { formatMYDateShort } from "~/lib/date-utils";
 import { ThemeProvider } from "~/lib/theme-context";
 import { AppHeader } from "~/components/app-header";
 import { ToastProvider, useToast } from "~/components/ui/toast-provider";
@@ -1139,11 +1140,7 @@ function StoragePageContent() {
                       {/* Modified */}
                       <div className="text-xs text-white/40 text-right">
                         {item.type === "file"
-                          ? new Date(item.last_modified).toLocaleDateString("en-GB", {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            })
+                          ? formatMYDateShort(item.last_modified)
                           : "—"}
                       </div>
 

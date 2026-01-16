@@ -20,6 +20,7 @@ import {
   ChartBuilder,
 } from "~/components/dashboard";
 import { StudioNav } from "~/components/studio-nav";
+import { formatMYTimeWithSeconds } from "~/lib/date-utils";
 
 // Stats display component
 export const Route = createFileRoute("/dashboard")({
@@ -57,7 +58,7 @@ function DashboardStats() {
       <StatCard
         icon={Clock}
         label="Last Updated"
-        value={state.dashboard.updatedAt ? new Date(state.dashboard.updatedAt).toLocaleTimeString() : "-"}
+        value={state.dashboard.updatedAt ? formatMYTimeWithSeconds(state.dashboard.updatedAt) : "-"}
         colour="violet"
       />
     </div>
@@ -207,7 +208,7 @@ function DashboardContent() {
             <div className="flex items-center gap-2 text-on-surface-variant">
               <Clock className="w-4 h-4" />
               <span className="font-mono text-sm">
-                {currentTime.toLocaleTimeString()}
+                {formatMYTimeWithSeconds(currentTime)}
               </span>
             </div>
             <button
