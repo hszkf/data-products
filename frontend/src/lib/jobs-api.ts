@@ -100,6 +100,8 @@ export interface Job {
   retry_delay_seconds: number;
   notify_on_success?: boolean;
   notify_on_failure?: boolean;
+  on_success_action?: number;
+  on_fail_action?: number;
 }
 
 export interface StepResult {
@@ -659,6 +661,370 @@ export function createWorkflowStep(
   };
 }
 
+// =============================================================================
+// SQL Server Agent Jobs API
+// =============================================================================
+
+/**
+ * SQL Server Agent Job type from /job endpoint
+ */
+export interface AgentJobStep {
+  step_id: number;
+  step_name: string;
+  subsystem: string;
+  command: string;
+  database_name: string;
+  on_success_action: number;
+  on_fail_action: number;
+  retry_attempts: number;
+  retry_interval: number;
+}
+
+export interface AgentJobSchedule {
+  schedule_id: number;
+  schedule_name: string;
+  enabled: boolean;
+  freq_type: string;
+  freq_interval: number;
+  freq_subday_type: string;
+  freq_subday_interval: number;
+  active_start_date: number;
+  active_end_date: number;
+  active_start_time: number;
+  active_end_time: number;
+  next_run_date: number | null;
+  next_run_time: number | null;
+  schedule_description: string;
+}
+
+export interface AgentJobHistory {
+  job_name: string;
+  step_id: number;
+  step_name: string;
+  status: string;
+  run_date: string | null;
+  run_time: string | null;
+  run_duration: string | null;
+  message: string;
+}
+
+export interface AgentJob {
+  job_id: string;
+  job_name: string;
+  description: string | null;
+  enabled: boolean;
+  date_created: string;
+  date_modified: string;
+  owner: string;
+  category: string;
+  current_status: string;
+  last_run_date: string | null;
+  last_run_time: string | null;
+  last_run_status: string | null;
+  last_run_duration: string | null;
+  next_run_date: string | null;
+  next_run_time: string | null;
+  step_count: number;
+  has_schedule: boolean;
+  on_success_action?: number;
+  on_fail_action?: number;
+  success_count?: number;
+  fail_count?: number;
+  steps?: AgentJobStep[];
+  schedules?: AgentJobSchedule[];
+}
+
+export interface AgentJobsResponse {
+  success: boolean;
+  jobs: AgentJob[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    total_pages: number;
+    has_next: boolean;
+    has_prev: boolean;
+  };
+}
+
+/**
+ * Get SQL Server Agent jobs from /job endpoint
+ */
+export async function getAgentJobs(params?: {
+  page?: number;
+  limit?: number;
+}): Promise<AgentJobsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set("page", params.page.toString());
+  if (params?.limit) searchParams.set("limit", params.limit.toString());
+
+  const queryString = searchParams.toString();
+  const url = `${API_BASE_URL}/job${queryString ? `?${queryString}` : ""}`;
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch agent jobs: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Start a SQL Server Agent job
+ */
+export async function startAgentJob(jobName: string): Promise<{ success: boolean; message: string }> {
+  const response = await fetch(`${API_BASE_URL}/job/${encodeURIComponent(jobName)}/start`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(error.error || `Failed to start job: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Stop a SQL Server Agent job
+ */
+export async function stopAgentJob(jobName: string): Promise<{ success: boolean; message: string }> {
+  const response = await fetch(`${API_BASE_URL}/job/${encodeURIComponent(jobName)}/stop`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(error.error || `Failed to stop job: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get SQL Server Agent job details (with steps and schedules)
+ */
+export async function getAgentJobDetails(jobName: string): Promise<{ success: boolean; job: AgentJob }> {
+  const response = await fetch(`${API_BASE_URL}/job/${encodeURIComponent(jobName)}`);
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(error.error || `Failed to get job details: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get SQL Server Agent job execution history
+ */
+export async function getAgentJobHistory(jobName: string, limit: number = 50): Promise<{
+  success: boolean;
+  job_name: string;
+  count: number;
+  history: AgentJobHistory[];
+}> {
+  const response = await fetch(`${API_BASE_URL}/job/${encodeURIComponent(jobName)}/history?limit=${limit}`);
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(error.error || `Failed to get job history: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get unique job owners
+ */
+export async function getJobOwners(): Promise<{ success: boolean; owners: string[] }> {
+  const response = await fetch(`${API_BASE_URL}/job/owners`);
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(error.error || `Failed to get job owners: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Response type for all job execution history
+ */
+export interface AllJobHistoryResponse {
+  success: boolean;
+  history: (AgentJobHistory & { owner?: string })[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    total_pages: number;
+    has_next: boolean;
+    has_prev: boolean;
+  };
+}
+
+/**
+ * Get all SQL Server Agent job execution history with pagination and filtering
+ */
+export async function getAllAgentJobHistory(params?: {
+  page?: number;
+  limit?: number;
+  job_name?: string;
+  status?: string;
+  date_from?: string;
+  date_to?: string;
+  owner?: string;
+  sort_by?: 'run_date' | 'duration';
+  sort_dir?: 'asc' | 'desc';
+}): Promise<AllJobHistoryResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set("page", params.page.toString());
+  if (params?.limit) searchParams.set("limit", params.limit.toString());
+  if (params?.job_name) searchParams.set("job_name", params.job_name);
+  if (params?.status) searchParams.set("status", params.status);
+  if (params?.date_from) searchParams.set("date_from", params.date_from);
+  if (params?.date_to) searchParams.set("date_to", params.date_to);
+  if (params?.owner) searchParams.set("owner", params.owner);
+  if (params?.sort_by) searchParams.set("sort_by", params.sort_by);
+  if (params?.sort_dir) searchParams.set("sort_dir", params.sort_dir);
+
+  const queryString = searchParams.toString();
+  const url = `${API_BASE_URL}/job/history${queryString ? `?${queryString}` : ""}`;
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(error.error || `Failed to get execution history: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Email notification configuration for SQL Server Agent jobs
+ */
+export interface EmailNotificationConfig {
+  enabled: boolean;
+  from_email?: string;       // Default: BI-Alert@alrajhibank.com.my
+  to_email: string;          // Multiple recipients separated by semicolon
+  cc_email?: string;         // CC recipients separated by semicolon
+  bcc_email?: string;        // BCC recipients separated by semicolon
+  subject?: string;
+  body?: string;
+  attach_results?: boolean;
+  attachment_filename?: string;
+}
+
+/**
+ * Create SQL Server Agent job input interface
+ */
+export interface CreateAgentJobInput {
+  job_name: string;
+  description?: string;
+  step_command?: string;
+  step_name?: string;
+  database_name?: string;
+  enabled?: boolean;
+  category?: string;
+  schedule_cron?: string; // Cron expression for scheduling (e.g., "0 8 * * *")
+  email_notification?: EmailNotificationConfig;
+}
+
+/**
+ * Update SQL Server Agent job input interface
+ */
+export interface UpdateAgentJobInput {
+  new_name?: string;
+  description?: string;
+  enabled?: boolean;
+  step_command?: string;
+  step_name?: string;
+  database_name?: string;
+}
+
+/**
+ * Create a new SQL Server Agent job
+ */
+export async function createAgentJob(input: CreateAgentJobInput): Promise<{
+  success: boolean;
+  message: string;
+  job?: AgentJob;
+}> {
+  const response = await fetch(`${API_BASE_URL}/job`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(error.error || `Failed to create job: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Update an existing SQL Server Agent job
+ */
+export async function updateAgentJob(jobName: string, input: UpdateAgentJobInput): Promise<{
+  success: boolean;
+  message: string;
+  job?: AgentJob;
+}> {
+  const response = await fetch(`${API_BASE_URL}/job/${encodeURIComponent(jobName)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(error.error || `Failed to update job: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Convert SQL Server Agent job to internal Job format for UI compatibility
+ */
+export function agentJobToJob(agentJob: AgentJob): Job {
+  // Parse last run datetime from date + time strings
+  let lastRunStartedAt: string | undefined;
+  if (agentJob.last_run_date && agentJob.last_run_time) {
+    lastRunStartedAt = `${agentJob.last_run_date}T${agentJob.last_run_time}`;
+  }
+
+  // Map agent job status to execution status
+  const mapStatus = (status: string | null): ExecutionStatus | undefined => {
+    if (!status) return undefined;
+    const statusMap: Record<string, ExecutionStatus> = {
+      'Succeeded': 'completed',
+      'Failed': 'failed',
+      'Running': 'running',
+      'Retry': 'pending',
+      'Canceled': 'cancelled',
+      'In Progress': 'running',
+    };
+    return statusMap[status] || 'pending';
+  };
+
+  return {
+    id: agentJob.job_id,
+    job_name: agentJob.job_name,
+    description: agentJob.description || undefined,
+    job_type: 'workflow' as JobType, // Agent jobs are workflow-like
+    schedule_type: 'cron' as ScheduleType, // Default
+    is_active: agentJob.enabled,
+    next_run_time: agentJob.next_run_date && agentJob.next_run_time
+      ? `${agentJob.next_run_date}T${agentJob.next_run_time}`
+      : undefined,
+    last_run_time: lastRunStartedAt,
+    last_run_started_at: lastRunStartedAt,
+    last_run_status: mapStatus(agentJob.last_run_status),
+    output_format: 'json' as OutputFormat,
+    author: agentJob.owner,
+    created_at: agentJob.date_created,
+    updated_at: agentJob.date_modified,
+    max_retries: 0,
+    retry_delay_seconds: 0,
+    on_success_action: agentJob.on_success_action,
+    on_fail_action: agentJob.on_fail_action,
+    // Mark as agent job for UI differentiation
+    _isAgentJob: true,
+    _agentJobName: agentJob.job_name,
+    // Success/Fail counts from history
+    success_count: agentJob.success_count,
+    fail_count: agentJob.fail_count,
+  } as Job & { _isAgentJob: boolean; _agentJobName: string; success_count?: number; fail_count?: number };
+}
+
 /**
  * Format schedule for display
  */
@@ -681,4 +1047,39 @@ export function formatSchedule(scheduleType: ScheduleType, scheduleConfig?: Sche
   }
 
   return "Unknown schedule";
+}
+
+/**
+ * Test email input interface
+ */
+export interface TestEmailInput {
+  from_email: string;
+  to_email: string;
+  cc_email?: string;
+  bcc_email?: string;
+  subject: string;
+  body: string;
+  query?: string;
+  attach_results?: boolean;
+  attachment_filename?: string;
+}
+
+/**
+ * Send a test email using SQL Server Database Mail
+ */
+export async function sendTestEmail(input: TestEmailInput): Promise<{
+  success: boolean;
+  message: string;
+  mail_id?: number;
+}> {
+  const response = await fetch(`${API_BASE_URL}/job/send-test-email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(error.error || `Failed to send test email: ${response.statusText}`);
+  }
+  return response.json();
 }

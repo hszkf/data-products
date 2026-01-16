@@ -9,6 +9,7 @@ import { aiRoutes } from './routes/ai';
 import { ragRoutes } from './routes/rag';
 import { usersRoutes } from './routes/users';
 import { logsRoutes } from './routes/logs';
+import { jobRoutes } from './routes/job';
 import { initSqlServer, closeSqlServer, getHealthStatus as getSqlServerHealth } from './services/database/sqlserver';
 import { initSqlServerBiBackup, closeSqlServerBiBackup, getHealthStatus as getSqlServerBiBackupHealth } from './services/database/sqlserver-bi-backup';
 import { initSqlServerDatamart, closeSqlServerDatamart, getHealthStatus as getSqlServerDatamartHealth } from './services/database/sqlserver-datamart';
@@ -177,6 +178,7 @@ app.route('/ai', aiRoutes);
 app.route('/rag', ragRoutes);
 app.route('/users', usersRoutes);
 app.route('/logs', logsRoutes);
+app.route('/job', jobRoutes); // SQL Server Agent jobs
 
 // 404 handler
 app.notFound(notFoundHandler);
