@@ -220,11 +220,7 @@ function ExecutionHistoryContent() {
       setPagination(result.pagination);
       setCurrentPage(page);
     } catch (error: any) {
-      showToast({
-        title: "Error",
-        description: error.message || "Failed to load execution history",
-        variant: "error",
-      });
+      showToast(error.message || "Failed to load execution history", "error");
     } finally {
       setIsLoading(false);
     }
