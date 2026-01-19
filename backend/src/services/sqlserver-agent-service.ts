@@ -10,6 +10,9 @@
 import sql from 'mssql';
 import { getPool, dbUser } from './database/sqlserver';
 
+// Database Mail profile name (configurable via env)
+const MAIL_PROFILE_NAME = process.env.SQLSERVER_MAIL_PROFILE || 'ARBM Data';
+
 // Schedule frequency type constants
 const FREQ_TYPE = {
   ONCE: 1 as number,
@@ -670,22 +673,21 @@ function generateStepCommand(
 
   // Use sp_send_dbmail with query results as attachment
   const emailCommand = `
--- Execute query and send results via email
-EXEC msdb.dbo.sp_send_dbmail
-    @profile_name = 'ARBM Data',
-    @from_address = '${fromEmail.replace(/'/g, "''")}',
-    @recipients = '${toEmail.replace(/'/g, "''")}',${ccParam}${bccParam}
-    @subject = N'${subject.replace(/'/g, "''")}',
-    @body = N'${body.replace(/'/g, "''")}',
-    @body_format = 'HTML',
-    @query = N'${query.replace(/'/g, "''")}',
-    @attach_query_result_as_file = 1,
-    @query_attachment_filename = '${filename.replace(/'/g, "''")}',
-    @query_result_header = 1,
-    @query_result_separator = ',',
-    @query_result_width = 32767,
-    @query_result_no_padding = 1;
-`;
+    -- Execute query and send results via email
+    EXEC msdb.dbo.sp_send_dbmail
+      @from_address = '${fromEmail.replace(/'/g, "''")}',
+      @recipients = '${toEmail.replace(/'/g, "''")}',${ccParam}${bccParam}
+      @subject = N'${subject.replace(/'/g, "''")}',
+      @body = N'${body.replace(/'/g, "''")}',
+      @body_format = 'HTML',
+      @query = N'${query.replace(/'/g, "''")}',
+      @attach_query_result_as_file = 1,
+      @query_attachment_filename = '${filename.replace(/'/g, "''")}',
+      @query_result_header = 1,
+      @query_result_separator = ',',
+      @query_result_width = 32767,
+      @query_result_no_padding = 1;
+  `;
 
   return emailCommand.trim();
 }
@@ -1182,16 +1184,37 @@ export async function sendTestEmail(input: TestEmailInput): Promise<{ success: b
   } = input;
 
   // Build the sp_send_dbmail command
-  let emailQuery = `
+   let emailQuery = `
     DECLARE @mailitem_id INT;
     EXEC msdb.dbo.sp_send_dbmail
-      @profile_name = 'ARBM Data',
       @from_address = @from_email,
-      @recipients = @to_email,`;
+      @recipients = @to_email`;
 
   if (cc_email?.trim()) {
     emailQuery += `
-      @copy_recipients = @cc_email,`;
+      @copy_recipients = @cc_email`;
+  }
+
+  if (bcc_email?.trim()) {
+    emailQuery += `
+      @blind_copy_recipients = @bcc_email`;
+  }
+
+  emailQuery += `
+      @subject = @subject,
+      @body = @body,
+      @body_format = 'HTML'`;
+
+  // If query is provided and attach_results is true, add query attachment
+  if (query?.trim() && attach_results) {
+    emailQuery += `,
+      @query = @query,
+      @attach_query_result_as_file = 1,
+      @query_attachment_filename = @filename,
+      @query_result_header = 1,
+      @query_result_separator = ',',
+      @query_result_width = 32767,
+      @query_result_no_padding = 1`;
   }
 
   if (bcc_email?.trim()) {
