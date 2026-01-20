@@ -26,6 +26,7 @@ import {
   getJobOwners,
   deleteAgentJob,
   sendTestEmail,
+  checkDatabaseMailConfig,
 } from '../services/sqlserver-agent-service';
 
 export const jobRoutes = new Hono();
@@ -74,6 +75,7 @@ const testEmailSchema = z.object({
   query: z.string().optional(),
   attach_results: z.boolean().optional().default(false),
   attachment_filename: z.string().optional().default('QueryResults.csv'),
+  profile_name: z.string().optional(),  // Optional: specify Database Mail profile explicitly
 });
 
 /**
@@ -418,6 +420,30 @@ jobRoutes.delete('/:name', async (c) => {
         error: error.message || 'Failed to delete job',
       },
       statusCode
+    );
+  }
+});
+
+/**
+ * GET /job/mail-config - Check Database Mail configuration
+ * Returns available profiles and accounts
+ */
+jobRoutes.get('/mail-config', async (c) => {
+  try {
+    const config = await checkDatabaseMailConfig();
+
+    return c.json({
+      success: true,
+      ...config,
+    });
+  } catch (error: any) {
+    console.error('Error checking Database Mail config:', error);
+    return c.json(
+      {
+        success: false,
+        error: error.message || 'Failed to check Database Mail configuration',
+      },
+      500
     );
   }
 });

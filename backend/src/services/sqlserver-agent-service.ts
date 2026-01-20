@@ -1154,6 +1154,56 @@ export async function deleteAgentJob(jobName: string): Promise<{ job_name: strin
 }
 
 /**
+ * Check Database Mail configuration and available profiles
+ */
+export async function checkDatabaseMailConfig(): Promise<{
+  enabled: boolean;
+  profiles: Array<{ profile_name: string; is_default: boolean }>;
+  accounts: Array<{ account_name: string; email_address: string }>;
+}> {
+  const pool = await getPool();
+
+  // Check if Database Mail XPs are enabled
+  const xpResult = await pool.request().query(`
+    SELECT CONVERT(INT, value_in_use) AS enabled
+    FROM sys.configurations
+    WHERE name = 'Database Mail XPs'
+  `);
+  const enabled = xpResult.recordset[0]?.enabled === 1;
+
+  // Get available profiles
+  const profilesResult = await pool.request().query(`
+    SELECT
+      p.name AS profile_name,
+      CASE WHEN pp.is_default = 1 THEN 1 ELSE 0 END AS is_default
+    FROM msdb.dbo.sysmail_profile p
+    LEFT JOIN msdb.dbo.sysmail_principalprofile pp
+      ON p.profile_id = pp.profile_id
+      AND pp.principal_sid = SUSER_SID()
+    ORDER BY p.name
+  `);
+
+  // Get mail accounts
+  const accountsResult = await pool.request().query(`
+    SELECT name AS account_name, email_address
+    FROM msdb.dbo.sysmail_account
+    ORDER BY name
+  `);
+
+  return {
+    enabled,
+    profiles: profilesResult.recordset.map((r: any) => ({
+      profile_name: r.profile_name,
+      is_default: r.is_default === 1,
+    })),
+    accounts: accountsResult.recordset.map((r: any) => ({
+      account_name: r.account_name,
+      email_address: r.email_address,
+    })),
+  };
+}
+
+/**
  * Send a test email using SQL Server Database Mail
  */
 export interface TestEmailInput {
@@ -1166,6 +1216,7 @@ export interface TestEmailInput {
   query?: string;
   attach_results?: boolean;
   attachment_filename?: string;
+  profile_name?: string;  // Optional: specify profile explicitly
 }
 
 export async function sendTestEmail(input: TestEmailInput): Promise<{ success: boolean; message: string; mail_id?: number }> {
@@ -1181,66 +1232,76 @@ export async function sendTestEmail(input: TestEmailInput): Promise<{ success: b
     query,
     attach_results = false,
     attachment_filename = 'QueryResults.csv',
+    profile_name,
   } = input;
 
-  // Build the sp_send_dbmail command
-   let emailQuery = `
-    DECLARE @mailitem_id INT;
-    EXEC msdb.dbo.sp_send_dbmail
-      @from_address = @from_email,
-      @recipients = @to_email`;
+  // Determine which profile to use
+  let profileToUse = profile_name;
+
+  // If no profile specified, try to find an available one
+  if (!profileToUse) {
+    try {
+      const config = await checkDatabaseMailConfig();
+
+      if (!config.enabled) {
+        throw new Error('Database Mail XPs are not enabled on the server. Run: EXEC sp_configure \'Database Mail XPs\', 1; RECONFIGURE;');
+      }
+
+      if (config.profiles.length === 0) {
+        throw new Error('No Database Mail profiles found. Please configure Database Mail on SQL Server.');
+      }
+
+      // Try to find a default profile first, otherwise use the first available
+      const defaultProfile = config.profiles.find(p => p.is_default);
+      profileToUse = defaultProfile?.profile_name || config.profiles[0].profile_name;
+
+      console.log(`Using Database Mail profile: ${profileToUse}`);
+    } catch (configError: any) {
+      // If we can't check config, try without profile and let SQL Server handle it
+      console.warn('Could not check Database Mail config:', configError.message);
+    }
+  }
+
+  // Build the sp_send_dbmail parameters dynamically
+  const params: string[] = [];
+
+  // Add profile_name if we have one
+  if (profileToUse) {
+    params.push('@profile_name = @profile_name');
+  }
+
+  params.push('@from_address = @from_email');
+  params.push('@recipients = @to_email');
 
   if (cc_email?.trim()) {
-    emailQuery += `
-      @copy_recipients = @cc_email`;
+    params.push('@copy_recipients = @cc_email');
   }
 
   if (bcc_email?.trim()) {
-    emailQuery += `
-      @blind_copy_recipients = @bcc_email`;
+    params.push('@blind_copy_recipients = @bcc_email');
   }
 
-  emailQuery += `
-      @subject = @subject,
-      @body = @body,
-      @body_format = 'HTML'`;
+  params.push('@subject = @subject');
+  params.push('@body = @body');
+  params.push("@body_format = 'HTML'");
 
   // If query is provided and attach_results is true, add query attachment
   if (query?.trim() && attach_results) {
-    emailQuery += `,
-      @query = @query,
-      @attach_query_result_as_file = 1,
-      @query_attachment_filename = @filename,
-      @query_result_header = 1,
-      @query_result_separator = ',',
-      @query_result_width = 32767,
-      @query_result_no_padding = 1`;
+    params.push('@query = @query');
+    params.push('@attach_query_result_as_file = 1');
+    params.push('@query_attachment_filename = @filename');
+    params.push('@query_result_header = 1');
+    params.push("@query_result_separator = ','");
+    params.push('@query_result_width = 32767');
+    params.push('@query_result_no_padding = 1');
   }
 
-  if (bcc_email?.trim()) {
-    emailQuery += `
-      @blind_copy_recipients = @bcc_email,`;
-  }
+  params.push('@mailitem_id = @mailitem_id OUTPUT');
 
-  emailQuery += `
-      @subject = @subject,
-      @body = @body,
-      @body_format = 'HTML'`;
-
-  // If query is provided and attach_results is true, add query attachment
-  if (query?.trim() && attach_results) {
-    emailQuery += `,
-      @query = @query,
-      @attach_query_result_as_file = 1,
-      @query_attachment_filename = @filename,
-      @query_result_header = 1,
-      @query_result_separator = ',',
-      @query_result_width = 32767,
-      @query_result_no_padding = 1`;
-  }
-
-  emailQuery += `,
-      @mailitem_id = @mailitem_id OUTPUT;
+  const emailQuery = `
+    DECLARE @mailitem_id INT;
+    EXEC msdb.dbo.sp_send_dbmail
+      ${params.join(',\n      ')};
     SELECT @mailitem_id AS mail_id;`;
 
   try {
@@ -1249,6 +1310,10 @@ export async function sendTestEmail(input: TestEmailInput): Promise<{ success: b
       .input('to_email', sql.NVarChar(sql.MAX), to_email)
       .input('subject', sql.NVarChar(255), subject)
       .input('body', sql.NVarChar(sql.MAX), body);
+
+    if (profileToUse) {
+      request.input('profile_name', sql.NVarChar(128), profileToUse);
+    }
 
     if (cc_email?.trim()) {
       request.input('cc_email', sql.NVarChar(sql.MAX), cc_email);
@@ -1268,7 +1333,7 @@ export async function sendTestEmail(input: TestEmailInput): Promise<{ success: b
 
     return {
       success: true,
-      message: `Test email sent successfully${mailId ? ` (Mail ID: ${mailId})` : ''}`,
+      message: `Test email sent successfully${mailId ? ` (Mail ID: ${mailId})` : ''} using profile: ${profileToUse || 'default'}`,
       mail_id: mailId,
     };
   } catch (error: any) {
